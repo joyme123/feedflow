@@ -1,0 +1,15 @@
+{
+  "name": "feedflow-plugin-x",
+  "version": "1.0.0",
+  "description": "免费自动获取 X（Twitter）关注信息流（基于 x.com GraphQL API，无需 OAuth）",
+  "main": "plugin.js",
+  "feedflow": {
+    "id": "feedflow-plugin-x",
+    "name": "X 关注流",
+    "version": "1.0.0",
+    "description": "免费自动获取 X（Twitter）关注信息流（基于 x.com GraphQL API，无需 OAuth）",
+    "author": "FeedFlow",
+    "color": "#1DA1F2",
+    "icon": "🐦"
+  }
+}

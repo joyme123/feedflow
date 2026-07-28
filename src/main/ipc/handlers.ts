@@ -1,0 +1,167 @@
+import { ipcMain, BrowserWindow } from 'electron'
+import * as sourceQueries from '../database/queries/sources'
+import * as itemQueries from '../database/queries/items'
+import { getAllMeta, getAll, get as getPlugin, getModule } from '../plugin-system/registry'
+import { refreshSources } from '../plugin-system/runner'
+import { upsertItem } from '../database/queries/items'
+import { updateSource, getEnabledSources } from '../database/queries/sources'
+import type { AddSourceInput } from '@shared/types/source'
+import type { TimelineListParams, DisplayItem } from '@shared/types/item'
+import type { SourceConfig } from '@shared/types/plugin'
+
+function enrichItems(items: itemQueries.Item[]): DisplayItem[] {
+  const pluginCache = new Map<string, { name: string; color: string }>()
+  const sources = sourceQueries.listSources()
+  const sourceMap = new Map(sources.map((s) => [s.id, s]))
+
+  return items.map((item) => {
+    const source = sourceMap.get(item.sourceId)
+    const pluginId = item.pluginId
+
+    if (!pluginCache.has(pluginId)) {
+      const plugin = getPlugin(pluginId)
+      pluginCache.set(pluginId, {
+        name: plugin?.meta.name ?? pluginId,
+        color: plugin?.meta.color ?? '#888888',
+      })
+    }
+
+    const pi = pluginCache.get(pluginId)!
+
+    return {
+      id: item.id,
+      sourceId: item.sourceId,
+      pluginId: item.pluginId,
+      pluginName: pi.name,
+      pluginColor: pi.color,
+      externalId: item.externalId,
+      authorName: item.authorName,
+      authorAvatar: item.authorAvatar,
+      contentText: item.contentText,
+      contentHtml: item.contentHtml,
+      mediaUrls: item.mediaUrls,
+      permalink: item.permalink,
+      publishedAt: item.publishedAt,
+      fetchedAt: item.fetchedAt,
+    }
+  })
+}
+
+// Re-export Item type for use in this file
+type Item = ReturnType<typeof itemQueries.listItems>['items'][number]
+
+export function registerIpcHandlers(): void {
+  // ---- Sources ----
+  ipcMain.handle('sources:list', () => {
+    return sourceQueries.listSources()
+  })
+
+  ipcMain.handle('sources:add', (_e, input: AddSourceInput) => {
+    return sourceQueries.addSource(input)
+  })
+
+  ipcMain.handle('sources:remove', (_e, id: string) => {
+    sourceQueries.removeSource(id)
+  })
+
+  ipcMain.handle('sources:update', (_e, { id, data }: { id: string; data: Record<string, unknown> }) => {
+    return sourceQueries.updateSource(id, data)
+  })
+
+  ipcMain.handle('sources:toggle', (_e, id: string) => {
+    return sourceQueries.toggleSource(id)
+  })
+
+  // ---- Plugins ----
+  ipcMain.handle('plugins:list', () => {
+    return getAllMeta()
+  })
+
+  ipcMain.handle('plugins:get-config-schema', (_e, pluginId: string) => {
+    const plugin = getPlugin(pluginId)
+    return plugin?.configSchema ?? []
+  })
+
+  ipcMain.handle('plugins:verify-cookie', async (_e, { pluginId, cookie }: { pluginId: string; cookie: string }) => {
+    const mod = getModule(pluginId)
+    if (!mod || typeof mod.verifyCookie !== 'function') {
+      throw new Error(`Plugin ${pluginId} does not support cookie verification`)
+    }
+    const verifyCookie = mod.verifyCookie as (cookie: string) => Promise<{ valid: boolean; uid?: string; screenName?: string; error?: string }>
+    return await verifyCookie(cookie)
+  })
+
+  // ---- Timeline ----
+  ipcMain.handle('timeline:list', (_e, params: TimelineListParams) => {
+    const raw = itemQueries.listItems(params)
+    return {
+      items: enrichItems(raw.items),
+      hasMore: raw.hasMore,
+      nextCursor: raw.nextCursor,
+    }
+  })
+
+  ipcMain.handle('timeline:refresh', async (_e, { sourceIds }: { sourceIds?: string[] }) => {
+    const totalFetched = await refreshSources(sourceIds)
+    return { totalFetched }
+  })
+
+  ipcMain.handle('timeline:load-older', async (_e, { sourceId, maxId }: { sourceId: string; maxId: string }) => {
+    const sources = getEnabledSources()
+    const source = sources.find((s) => s.id === sourceId)
+    if (!source) return { totalFetched: 0 }
+
+    const plugin = get(source.pluginId)
+    if (!plugin) return { totalFetched: 0 }
+
+    let config: SourceConfig = {}
+    try {
+      config = JSON.parse(source.config as unknown as string) as SourceConfig
+    } catch {
+      config = {}
+    }
+
+    const win = BrowserWindow.getAllWindows()[0]
+    win?.webContents.send('refresh:progress', {
+      sourceId: source.id,
+      sourceName: source.name,
+      status: 'fetching'
+    })
+
+    try {
+      // 使用 maxId 游标加载更早的微博
+      const cursor = JSON.stringify({ maxId })
+      const result = await plugin.fetchItems(config, cursor)
+
+      for (const item of result.items) {
+        upsertItem(source.id, source.pluginId, item)
+      }
+
+      // 更新 source 的游标，保留 sinceId，更新 maxId
+      const existingCursor = source.cursorValue
+      let sinceId = ''
+      try {
+        const parsed = JSON.parse(existingCursor || '{}')
+        sinceId = parsed.sinceId || ''
+      } catch { /* ignore */ }
+
+      const newMaxId = result.items.length > 0
+        ? result.items[result.items.length - 1].externalId
+        : maxId
+      updateSource(source.id, {
+        cursorValue: JSON.stringify({ sinceId, maxId: newMaxId })
+      })
+
+      win?.webContents.send('refresh:complete', {
+        sourceId: source.id,
+        itemsFetched: result.items.length
+      })
+
+      return { totalFetched: result.items.length }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err)
+      console.error(`[Runner] Error loading older for ${source.id}:`, errorMessage)
+      return { totalFetched: 0 }
+    }
+  })
+}

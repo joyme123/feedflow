@@ -1,0 +1,15 @@
+{
+  "name": "feedflow-plugin-mock",
+  "version": "1.0.0",
+  "description": "A simulated information source for FeedFlow development and testing",
+  "main": "plugin.js",
+  "feedflow": {
+    "id": "feedflow-plugin-mock",
+    "name": "Mock Source",
+    "version": "1.0.0",
+    "description": "Generates fake timeline items for development",
+    "author": "FeedFlow",
+    "color": "#6C5CE7",
+    "icon": "🧪"
+  }
+}

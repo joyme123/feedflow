@@ -1,0 +1,48 @@
+.pluginGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md);
+}
+
+.pluginCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  text-align: center;
+}
+.pluginCard:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.pluginIcon {
+  font-size: 32px;
+}
+
+.pluginName {
+  font-weight: 600;
+  font-size: var(--font-size-base);
+}
+
+.pluginDesc {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.emptyText {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--color-text-secondary);
+  padding: var(--spacing-lg);
+}
+
+.backRow {
+  margin-bottom: var(--spacing-md);
+}

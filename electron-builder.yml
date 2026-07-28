@@ -1,0 +1,20 @@
+appId: com.feedflow.app
+productName: FeedFlow
+directories:
+  buildResources: resources
+  output: dist
+files:
+  - out/**/*
+  - plugins/**/*
+mac:
+  category: public.app-category.news
+  target:
+    - dmg
+    - zip
+win:
+  target:
+    - nsis
+linux:
+  target:
+    - AppImage
+    - deb

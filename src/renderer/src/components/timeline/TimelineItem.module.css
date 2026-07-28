@@ -1,0 +1,121 @@
+.card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  transition: box-shadow 0.15s;
+}
+.card:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-sm);
+}
+
+.author {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.avatarPlaceholder {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.authorName {
+  font-weight: 600;
+  font-size: var(--font-size-base);
+}
+
+.body {
+  margin-bottom: var(--spacing-sm);
+}
+
+.content {
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+  color: var(--color-text);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.mediaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-top: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.single {
+  grid-template-columns: 1fr;
+}
+
+.media {
+  width: 100%;
+  max-height: 300px;
+  object-fit: cover;
+  cursor: zoom-in;
+  transition: opacity 0.15s;
+}
+.media:hover {
+  opacity: 0.9;
+}
+
+.videoContainer {
+  margin-top: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #000;
+}
+
+.video {
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  background: #000;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.time {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.link {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+.link:hover {
+  background: var(--color-bg-secondary);
+}

@@ -1,0 +1,34 @@
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: 2px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.item:hover {
+  background: var(--color-bg);
+}
+
+.selected {
+  background: var(--color-bg-secondary);
+  border-left: 3px solid var(--color-primary);
+  padding-left: calc(var(--spacing-md) - 3px + var(--spacing-sm));
+}
+
+.icon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.name {
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
