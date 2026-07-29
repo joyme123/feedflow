@@ -45,11 +45,10 @@ const meta = {
 const configSchema = [
   {
     key: 'cookie',
-    label: '微博 Cookie',
-    type: 'text-area',
+    label: '微博凭据',
+    type: 'credential',
     required: true,
-    placeholder: '从 weibo.com 浏览器登录后，在 DevTools → Network 中复制 Cookie',
-    helpText: '登录 https://weibo.com 后，按 F12 → Network → 刷新页面 → 点击任意请求 → 复制 Cookie 字段的值。插件会自动获取你的关注信息流。'
+    helpText: '选择一个已保存的微博 Cookie 凭据，或创建新凭据。凭据可在多个信息源间复用，无需重复粘贴。'
   },
   {
     key: 'count',
@@ -74,6 +73,46 @@ const LIST_ID_CACHE_TTL = 60 * 60 * 1000 // list_id 缓存 1 小时
 // 数据映射
 // ============================================================
 
+/**
+ * 获取微博完整文本：优先使用 long_text 字段，否则清理 text 中的展开标记。
+ *
+ * 微博长文在 text 字段中会被截断，并附带一个 <a ...>...展开</a> 链接。
+ * long_text 字段包含完整正文（纯文本），仅在正文超长时才存在。
+ * 无论来源如何，都需要清理展开标记。
+ *
+ * @returns {{ text: string, isTruncated: boolean }} 清理后的文本及是否被截断
+ */
+function getFullText(status) {
+  // 如果 long_text 不可用且 text 中包含"展开"链接，说明文本被截断了
+  const rawText = status.text || ''
+  const isTruncated = !status.long_text && /展开/.test(rawText)
+  const text = status.long_text || rawText
+  return { text: cleanExpandMarker(text), isTruncated }
+}
+
+/**
+ * 清理微博 HTML 中的"展开"截断标记。
+ *
+ * 微博长文的 text 字段末尾通常包含：
+ *   <a href="..." target="_blank">...展开</a>
+ * 或被 <span class="expand"> / <span class="WB_text_opt"> 包裹的展开链接。
+ * 此函数移除这些标记，以便 UI 层自行处理展开/收起。
+ */
+function cleanExpandMarker(html) {
+  if (!html) return ''
+  return html
+    // 移除包含"展开"的 <a> 标签（允许内部有嵌套标签如 <i>/<span>，
+    // 但用负向前瞻防止跨越其他 <a> 标签，避免误删前面的链接/话题标签）
+    .replace(/<a\b[^>]*>(?:(?!<\/?a\b)[\s\S])*?展开(?:(?!<\/?a\b)[\s\S])*?<\/a>/gi, '')
+    // 移除包含"展开"的 <span> 包裹层（expand / WB_text_opt 等微博特有类名）
+    .replace(/<span\b[^>]*class="[^"]*(?:expand|WB_text_opt)[^"]*"[^>]*>[\s\S]*?<\/span>/gi, '')
+    // 移除尾部残留的"…展开"、"...展开"等纯文本标记（不在任何标签内的情况）
+    .replace(/[.。…\s]*展开\s*$/g, '')
+    // 清理尾部残留的省略号
+    .replace(/[.。…\s]+$/g, '')
+    .trim()
+}
+
 function mapStatusToItem(status) {
   const user = status.user || {}
   const mid = status.mid || status.idstr || String(status.id)
@@ -95,13 +134,16 @@ function mapStatusToItem(status) {
   if (mediaUrls.length === 0 && status.original_pic) mediaUrls.push(status.original_pic)
   if (mediaUrls.length === 0 && status.bmiddle_pic) mediaUrls.push(status.bmiddle_pic)
 
+  // 处理正文：优先使用 long_text（完整内容），否则清理 text 中的展开标记
+  const { text: mainText, isTruncated } = getFullText(status)
+  let displayText = mainText
+
   // 处理转发微博
-  let displayText = status.text || ''
   if (status.retweeted_status) {
     const rtUser = status.retweeted_status.user
     const rtName = rtUser ? `@${rtUser.screen_name}` : ''
-    const rtText = status.retweeted_status.text || ''
-    displayText += `\n\n//${rtName}: ${rtText}`
+    const rtResult = getFullText(status.retweeted_status)
+    displayText += `\n\n//${rtName}: ${rtResult.text}`
   }
 
   return {
@@ -123,7 +165,8 @@ function mapStatusToItem(status) {
       commentsCount: status.comments_count || 0,
       attitudesCount: status.attitudes_count || 0,
       source: stripHtml(status.source || ''),
-      isRetweet: !!status.retweeted_status
+      isRetweet: !!status.retweeted_status,
+      isTruncated: isTruncated
     }
   }
 }

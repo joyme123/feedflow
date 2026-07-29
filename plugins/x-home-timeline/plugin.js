@@ -48,11 +48,10 @@ const meta = {
 const configSchema = [
   {
     key: 'cookie',
-    label: 'X Cookie',
-    type: 'text-area',
+    label: 'X 凭据',
+    type: 'credential',
     required: true,
-    placeholder: '从 x.com 浏览器登录后，在 DevTools → Network 中复制 Cookie',
-    helpText: '登录 https://x.com 后，按 F12 → Network → 刷新页面 → 点击任意请求 → 复制 Cookie 字段的值。插件会自动获取你的关注信息流。'
+    helpText: '选择一个已保存的 X Cookie 凭据，或创建新凭据。凭据可在多个信息源间复用（如「关注」和「推荐」流），无需重复粘贴。'
   },
   {
     key: 'feedType',

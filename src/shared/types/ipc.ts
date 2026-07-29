@@ -1,6 +1,7 @@
 import type { Source, AddSourceInput } from './source'
 import type { Item, TimelineListParams, RefreshProgress } from './item'
 import type { PluginMeta, ConfigField } from './plugin'
+import type { Credential, AddCredentialInput, UpdateCredentialInput } from './credential'
 
 /** Typed IPC channel map */
 export interface IpcChannelMap {
@@ -13,6 +14,12 @@ export interface IpcChannelMap {
   'plugins:list': { in: void; out: PluginMeta[] }
   'plugins:get-config-schema': { in: string; out: ConfigField[] }
   'plugins:verify-cookie': { in: { pluginId: string; cookie: string }; out: { valid: boolean; uid?: string; screenName?: string; error?: string } }
+
+  'credentials:list': { in: { pluginId?: string } | void; out: Credential[] }
+  'credentials:add': { in: AddCredentialInput; out: Credential }
+  'credentials:update': { in: { id: string; data: UpdateCredentialInput }; out: Credential }
+  'credentials:remove': { in: string; out: void }
+  'credentials:count-references': { in: { pluginId: string; credentialId: string }; out: { count: number } }
 
   'timeline:list': { in: TimelineListParams; out: { items: Item[]; hasMore: boolean; nextCursor: string | null } }
   'timeline:refresh': { in: { sourceIds?: string[] }; out: { totalFetched: number } }

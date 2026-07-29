@@ -14,6 +14,14 @@ const api = {
   verifyCookie: (pluginId: string, cookie: string) =>
     ipcRenderer.invoke('plugins:verify-cookie', { pluginId, cookie }),
 
+  // Credentials
+  listCredentials: (pluginId?: string) => ipcRenderer.invoke('credentials:list', { pluginId }),
+  addCredential: (input: unknown) => ipcRenderer.invoke('credentials:add', input),
+  updateCredential: (id: string, data: unknown) => ipcRenderer.invoke('credentials:update', { id, data }),
+  removeCredential: (id: string) => ipcRenderer.invoke('credentials:remove', id),
+  countCredentialReferences: (pluginId: string, credentialId: string) =>
+    ipcRenderer.invoke('credentials:count-references', { pluginId, credentialId }),
+
   // Timeline
   listItems: (params: unknown) => ipcRenderer.invoke('timeline:list', params),
   refresh: (sourceIds?: string[]) => ipcRenderer.invoke('timeline:refresh', { sourceIds }),

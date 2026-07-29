@@ -60,6 +60,50 @@
   white-space: pre-wrap;
 }
 
+/* 内容中的表情贴纸图片应与文字大小相当，不应撑满整个卡片 */
+.content img {
+  height: 1.5em;
+  width: auto;
+  vertical-align: middle;
+  object-fit: contain;
+}
+
+.contentCollapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.expandButton {
+  margin-top: var(--spacing-xs);
+  padding: 2px 8px;
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background 0.15s;
+}
+
+.expandButton:hover {
+  background: var(--color-bg-secondary);
+}
+
+.viewMoreLink {
+  display: inline-block;
+  margin-top: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+  color: var(--color-primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.viewMoreLink:hover {
+  text-decoration: underline;
+}
+
 .mediaGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -71,6 +115,11 @@
 
 .single {
   grid-template-columns: 1fr;
+}
+
+.single .media {
+  max-height: none;
+  object-fit: contain;
 }
 
 .media {

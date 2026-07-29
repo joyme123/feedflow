@@ -1,15 +1,18 @@
 import { ipcMain, BrowserWindow } from 'electron'
 import * as sourceQueries from '../database/queries/sources'
 import * as itemQueries from '../database/queries/items'
+import * as credentialQueries from '../database/queries/credentials'
 import { getAllMeta, getAll, get as getPlugin, getModule } from '../plugin-system/registry'
 import { refreshSources } from '../plugin-system/runner'
+import { resolveCredentialFields } from '../plugin-system/credentials'
 import { upsertItem } from '../database/queries/items'
 import { updateSource, getEnabledSources } from '../database/queries/sources'
 import type { AddSourceInput } from '@shared/types/source'
-import type { TimelineListParams, DisplayItem } from '@shared/types/item'
+import type { TimelineListParams, DisplayItem, Item } from '@shared/types/item'
 import type { SourceConfig } from '@shared/types/plugin'
+import type { AddCredentialInput, UpdateCredentialInput } from '@shared/types/credential'
 
-function enrichItems(items: itemQueries.Item[]): DisplayItem[] {
+function enrichItems(items: Item[]): DisplayItem[] {
   const pluginCache = new Map<string, { name: string; color: string }>()
   const sources = sourceQueries.listSources()
   const sourceMap = new Map(sources.map((s) => [s.id, s]))
@@ -39,16 +42,16 @@ function enrichItems(items: itemQueries.Item[]): DisplayItem[] {
       authorAvatar: item.authorAvatar,
       contentText: item.contentText,
       contentHtml: item.contentHtml,
-      mediaUrls: item.mediaUrls,
+      mediaUrls: JSON.parse(item.mediaUrls || '[]'),
       permalink: item.permalink,
       publishedAt: item.publishedAt,
       fetchedAt: item.fetchedAt,
+      metadata: item.metadata,
     }
   })
 }
 
 // Re-export Item type for use in this file
-type Item = ReturnType<typeof itemQueries.listItems>['items'][number]
 
 export function registerIpcHandlers(): void {
   // ---- Sources ----
@@ -91,6 +94,28 @@ export function registerIpcHandlers(): void {
     return await verifyCookie(cookie)
   })
 
+  // ---- Credentials ----
+  ipcMain.handle('credentials:list', (_e, filter?: { pluginId?: string }) => {
+    return credentialQueries.listCredentials(filter?.pluginId)
+  })
+
+  ipcMain.handle('credentials:add', (_e, input: AddCredentialInput) => {
+    return credentialQueries.addCredential(input)
+  })
+
+  ipcMain.handle('credentials:update', (_e, { id, data }: { id: string; data: UpdateCredentialInput }) => {
+    return credentialQueries.updateCredential(id, data)
+  })
+
+  ipcMain.handle('credentials:remove', (_e, id: string) => {
+    credentialQueries.removeCredential(id)
+  })
+
+  ipcMain.handle('credentials:count-references', (_e, { pluginId, credentialId }: { pluginId: string; credentialId: string }) => {
+    const count = credentialQueries.countSourcesByCredentialId(pluginId, credentialId)
+    return { count }
+  })
+
   // ---- Timeline ----
   ipcMain.handle('timeline:list', (_e, params: TimelineListParams) => {
     const raw = itemQueries.listItems(params)
@@ -111,7 +136,7 @@ export function registerIpcHandlers(): void {
     const source = sources.find((s) => s.id === sourceId)
     if (!source) return { totalFetched: 0 }
 
-    const plugin = get(source.pluginId)
+    const plugin = getPlugin(source.pluginId)
     if (!plugin) return { totalFetched: 0 }
 
     let config: SourceConfig = {}
@@ -120,6 +145,9 @@ export function registerIpcHandlers(): void {
     } catch {
       config = {}
     }
+
+    // Resolve credential references into raw values before fetching
+    config = resolveCredentialFields(config, source.pluginId)
 
     const win = BrowserWindow.getAllWindows()[0]
     win?.webContents.send('refresh:progress', {

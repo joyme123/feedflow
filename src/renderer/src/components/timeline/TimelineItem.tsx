@@ -29,6 +29,16 @@ function formatFullTime(isoString: string): string {
 
 export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
+
+  // 解析 metadata（包含 isTruncated 等插件侧标记）
+  let metadata: Record<string, unknown> = {}
+  try {
+    metadata = item.metadata ? JSON.parse(item.metadata) : {}
+  } catch {
+    metadata = {}
+  }
+  const isTruncated = !!metadata.isTruncated
 
   let mediaUrls: string[] = []
   try {
@@ -36,6 +46,12 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
   } catch {
     mediaUrls = []
   }
+
+  // 判断内容是否需要展开/收起（超过阈值字符数视为长内容）
+  const EXPAND_THRESHOLD = 300
+  const contentPlain = item.contentText || ''
+  const needsExpand = contentPlain.length > EXPAND_THRESHOLD
+  const contentCollapsed = needsExpand && !expanded
 
   // 检测视频 URL（微博视频通常是 .mp4 或 .mov 格式）
   const videoUrl = mediaUrls.find(
@@ -69,11 +85,35 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
       <div className={styles.body}>
         {item.contentHtml ? (
           <div
-            className={styles.content}
+            className={`${styles.content} ${contentCollapsed ? styles.contentCollapsed : ''}`}
             dangerouslySetInnerHTML={{ __html: item.contentHtml }}
           />
         ) : (
-          <p className={styles.content}>{item.contentText}</p>
+          <p className={`${styles.content} ${contentCollapsed ? styles.contentCollapsed : ''}`}>
+            {item.contentText}
+          </p>
+        )}
+
+        {/* 展开/收起按钮 */}
+        {needsExpand && (
+          <button
+            className={styles.expandButton}
+            onClick={() => setExpanded((prev) => !prev)}
+          >
+            {expanded ? '收起' : '展开'}
+          </button>
+        )}
+
+        {/* 文本被截断时显示"查看更多"链接（在浏览器中打开原帖查看完整内容） */}
+        {isTruncated && item.permalink && (
+          <a
+            className={styles.viewMoreLink}
+            href={item.permalink}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            查看更多 →
+          </a>
         )}
 
         {/* 视频播放 */}

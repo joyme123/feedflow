@@ -39,6 +39,7 @@ export interface DisplayItem {
   permalink: string
   publishedAt: string
   fetchedAt: string
+  metadata: string
 }
 
 /** Fetch log entry */

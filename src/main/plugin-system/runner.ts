@@ -1,5 +1,6 @@
 import { BrowserWindow } from 'electron'
 import { get } from './registry'
+import { resolveCredentialFields } from './credentials'
 import { getEnabledSources, updateSource } from '../database/queries/sources'
 import { upsertItem } from '../database/queries/items'
 import { insertLog } from '../database/queries/fetch_log'
@@ -28,6 +29,9 @@ export async function refreshSources(sourceIds?: string[]): Promise<number> {
     } catch {
       config = {}
     }
+
+    // Resolve credential references into raw values before fetching
+    config = resolveCredentialFields(config, source.pluginId)
 
     // Notify: fetching
     win?.webContents.send('refresh:progress', {

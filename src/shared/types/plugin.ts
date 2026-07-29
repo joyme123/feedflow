@@ -18,7 +18,7 @@ export interface PluginMeta {
 export interface ConfigField {
   key: string
   label: string
-  type: 'text' | 'number' | 'password' | 'select' | 'boolean' | 'text-area'
+  type: 'text' | 'number' | 'password' | 'select' | 'boolean' | 'text-area' | 'credential'
   required?: boolean
   default?: unknown
   placeholder?: string

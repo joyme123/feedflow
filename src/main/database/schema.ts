@@ -69,5 +69,18 @@ export function initializeDatabase(): void {
       key   TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS credentials (
+      id          TEXT PRIMARY KEY,
+      plugin_id   TEXT NOT NULL,
+      name        TEXT NOT NULL,
+      value       TEXT NOT NULL,
+      extra       TEXT NOT NULL DEFAULT '{}',
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (plugin_id) REFERENCES plugins(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_credentials_plugin ON credentials(plugin_id);
   `)
 }

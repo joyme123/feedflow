@@ -2,3 +2,4 @@ export type { FeedFlowPlugin, PluginMeta, ConfigField, SourceConfig, TimelineIte
 export type { Source, AddSourceInput } from './source'
 export type { Item, TimelineListParams, DisplayItem, FetchLogEntry, RefreshProgress } from './item'
 export type { IpcChannelMap, MainToRendererEvents } from './ipc'
+export type { Credential, AddCredentialInput, UpdateCredentialInput } from './credential'
