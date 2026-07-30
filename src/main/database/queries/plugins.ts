@@ -33,22 +33,23 @@ export function registerPlugin(plugin: {
   version: string
   description: string
   entryPath: string
+  provider: string
 }): void {
   const db = getDb()
   const now = new Date().toISOString()
   // 使用 INSERT OR IGNORE 避免 INSERT OR REPLACE 触发级联删除 (ON DELETE CASCADE)
-  // 已存在的插件只更新 version/description/entry_path/updated_at，不删除记录
+  // 已存在的插件只更新 version/description/entry_path/provider/updated_at，不删除记录
   const existing = db.prepare('SELECT id FROM plugins WHERE id = ?').get(plugin.id)
   if (existing) {
     db.prepare(`
-      UPDATE plugins SET name = ?, version = ?, description = ?, entry_path = ?, updated_at = ?
+      UPDATE plugins SET name = ?, version = ?, description = ?, entry_path = ?, provider = ?, updated_at = ?
       WHERE id = ?
-    `).run(plugin.name, plugin.version, plugin.description, plugin.entryPath, now, plugin.id)
+    `).run(plugin.name, plugin.version, plugin.description, plugin.entryPath, plugin.provider, now, plugin.id)
   } else {
     db.prepare(`
-      INSERT INTO plugins (id, name, version, description, entry_path, enabled, installed_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 1, ?, ?)
-    `).run(plugin.id, plugin.name, plugin.version, plugin.description, plugin.entryPath, now, now)
+      INSERT INTO plugins (id, name, version, description, entry_path, provider, enabled, installed_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+    `).run(plugin.id, plugin.name, plugin.version, plugin.description, plugin.entryPath, plugin.provider, now, now)
   }
 }
 

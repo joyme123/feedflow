@@ -10,6 +10,7 @@ export function initializeDatabase(): void {
       version     TEXT NOT NULL,
       description TEXT DEFAULT '',
       entry_path  TEXT NOT NULL,
+      provider    TEXT NOT NULL DEFAULT '',
       enabled     INTEGER NOT NULL DEFAULT 1,
       installed_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
@@ -91,20 +92,52 @@ export function initializeDatabase(): void {
     // Column already exists, ignore
   }
 
+  // Migration: add provider column to existing plugins table if not present
+  try {
+    const cols = db.prepare("PRAGMA table_info(plugins)").all() as { name: string }[]
+    if (!cols.some((c) => c.name === 'provider')) {
+      db.exec(`ALTER TABLE plugins ADD COLUMN provider TEXT NOT NULL DEFAULT ''`)
+    }
+  } catch (err) {
+    console.error('[Schema] plugins provider migration failed:', err)
+  }
+
   // Migration: credentials.plugin_id -> credentials.provider
   // Existing credentials were scoped to a plugin; re-scope them to the
-  // plugin's provider (defaulting to the plugin id) so they can be shared
-  // across plugins of the same service provider.
+  // plugin's provider so they can be shared across plugins of the same
+  // service provider (e.g. 微博关注流 + 微博群聊 -> "weibo").
+  //
+  // We rebuild the table to also drop the old plugin_id column and its
+  // FOREIGN KEY ... ON DELETE CASCADE constraint (which would otherwise
+  // cascade-delete credentials when a plugin is removed).
   try {
     const cols = db.prepare("PRAGMA table_info(credentials)").all() as { name: string }[]
     const hasPluginId = cols.some((c) => c.name === 'plugin_id')
-    const hasProvider = cols.some((c) => c.name === 'provider')
-    if (hasPluginId && !hasProvider) {
-      db.exec(`ALTER TABLE credentials ADD COLUMN provider TEXT`)
-      // Backfill: use the plugin's provider if known, else the plugin id.
-      // (plugins table doesn't store provider yet; fall back to plugin_id.)
-      db.exec(`UPDATE credentials SET provider = plugin_id WHERE provider IS NULL`)
-      db.exec(`CREATE INDEX IF NOT EXISTS idx_credentials_provider ON credentials(provider)`)
+    if (hasPluginId) {
+      db.exec(`
+        CREATE TABLE credentials_new (
+          id          TEXT PRIMARY KEY,
+          provider    TEXT NOT NULL,
+          name        TEXT NOT NULL,
+          value       TEXT NOT NULL,
+          extra       TEXT NOT NULL DEFAULT '{}',
+          created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `)
+      // Backfill provider from the plugins table (real provider if set,
+      // else fall back to the plugin id so the credential isn't lost).
+      db.exec(`
+        INSERT INTO credentials_new (id, provider, name, value, extra, created_at, updated_at)
+        SELECT c.id,
+               COALESCE(NULLIF(p.provider, ''), c.plugin_id),
+               c.name, c.value, c.extra, c.created_at, c.updated_at
+        FROM credentials c
+        LEFT JOIN plugins p ON p.id = c.plugin_id
+      `)
+      db.exec(`DROP TABLE credentials`)
+      db.exec(`ALTER TABLE credentials_new RENAME TO credentials`)
+      db.exec(`CREATE INDEX idx_credentials_provider ON credentials(provider)`)
     }
   } catch (err) {
     console.error('[Schema] credentials provider migration failed:', err)

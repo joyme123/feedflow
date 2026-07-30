@@ -20,7 +20,7 @@ export interface IpcChannelMap {
   'credentials:add': { in: AddCredentialInput; out: Credential }
   'credentials:update': { in: { id: string; data: UpdateCredentialInput }; out: Credential }
   'credentials:remove': { in: string; out: void }
-  'credentials:count-references': { in: { provider: string; credentialId: string }; out: { count: number } }
+  'credentials:count-references': { in: { credentialId: string }; out: { count: number } }
 
   'timeline:list': { in: TimelineListParams; out: { items: Item[]; hasMore: boolean; nextCursor: string | null } }
   'timeline:refresh': { in: { sourceIds?: string[] }; out: { totalFetched: number } }

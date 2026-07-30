@@ -6,6 +6,7 @@ const plugins = new Map<string, FeedFlowPlugin>()
 const modules = new Map<string, Record<string, unknown>>()
 
 export function register(plugin: FeedFlowPlugin, entryPath: string, rawModule?: Record<string, unknown>): void {
+  const provider = plugin.meta.provider ?? plugin.meta.id
   plugins.set(plugin.meta.id, plugin)
   if (rawModule) {
     modules.set(plugin.meta.id, rawModule)
@@ -16,9 +17,10 @@ export function register(plugin: FeedFlowPlugin, entryPath: string, rawModule?: 
     name: plugin.meta.name,
     version: plugin.meta.version,
     description: plugin.meta.description,
-    entryPath
+    entryPath,
+    provider
   })
-  console.log(`[PluginRegistry] Registered: ${plugin.meta.id} (${plugin.meta.name})`)
+  console.log(`[PluginRegistry] Registered: ${plugin.meta.id} (${plugin.meta.name}, provider=${provider})`)
 }
 
 export function get(id: string): FeedFlowPlugin | undefined {

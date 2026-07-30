@@ -44,7 +44,7 @@ export function CredentialsPanel(): JSX.Element {
     const seen = new Set<string>()
     const list: { id: string; label: string }[] = []
     for (const p of plugins) {
-      const id = p.provider ?? p.id
+      const id = p.provider
       if (seen.has(id)) continue
       seen.add(id)
       // Use the plugin name as the provider label for display.
@@ -58,7 +58,7 @@ export function CredentialsPanel(): JSX.Element {
 
   // Pick any plugin of the given provider to delegate cookie verification.
   const pluginIdForProvider = (provider: string): string | undefined =>
-    plugins.find((p) => (p.provider ?? p.id) === provider)?.id
+    plugins.find((p) => p.provider === provider)?.id
 
   const resetForm = () => {
     setForm(EMPTY_FORM)
@@ -145,7 +145,7 @@ export function CredentialsPanel(): JSX.Element {
   }
 
   const handleDelete = async (cred: Credential) => {
-    const { count } = await window.api.countCredentialReferences(cred.provider, cred.id)
+    const { count } = await window.api.countCredentialReferences(cred.id)
     const msg = count > 0
       ? `此凭据被 ${count} 个信息源使用，删除后这些信息源将无法刷新。确定删除「${cred.name}」？`
       : `确定删除凭据「${cred.name}」？`

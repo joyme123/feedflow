@@ -126,7 +126,7 @@ export function registerIpcHandlers(): void {
     credentialQueries.removeCredential(id)
   })
 
-  ipcMain.handle('credentials:count-references', (_e, { credentialId }: { provider: string; credentialId: string }) => {
+  ipcMain.handle('credentials:count-references', (_e, { credentialId }: { credentialId: string }) => {
     const count = credentialQueries.countSourcesByCredentialId(credentialId)
     return { count }
   })

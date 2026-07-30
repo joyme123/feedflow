@@ -21,8 +21,8 @@ const api = {
   addCredential: (input: unknown) => ipcRenderer.invoke('credentials:add', input),
   updateCredential: (id: string, data: unknown) => ipcRenderer.invoke('credentials:update', { id, data }),
   removeCredential: (id: string) => ipcRenderer.invoke('credentials:remove', id),
-  countCredentialReferences: (provider: string, credentialId: string) =>
-    ipcRenderer.invoke('credentials:count-references', { provider, credentialId }),
+  countCredentialReferences: (credentialId: string) =>
+    ipcRenderer.invoke('credentials:count-references', { credentialId }),
 
   // Weibo
   setWeiboCookie: (cookie: string) => ipcRenderer.invoke('set-weibo-cookie', cookie),
