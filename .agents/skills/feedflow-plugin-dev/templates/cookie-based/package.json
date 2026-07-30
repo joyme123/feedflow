@@ -1,0 +1,15 @@
+{
+  "name": "feedflow-plugin-cookie-template",
+  "version": "1.0.0",
+  "description": "Cookie-authenticated FeedFlow plugin template",
+  "main": "plugin.js",
+  "feedflow": {
+    "id": "feedflow-plugin-cookie-template",
+    "name": "Cookie Template",
+    "version": "1.0.0",
+    "description": "A cookie-authenticated plugin template for FeedFlow",
+    "author": "Your Name",
+    "color": "#1DA1F2",
+    "icon": "🍪"
+  }
+}

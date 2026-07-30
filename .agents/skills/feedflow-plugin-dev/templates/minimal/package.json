@@ -1,0 +1,15 @@
+{
+  "name": "feedflow-plugin-minimal",
+  "version": "1.0.0",
+  "description": "Minimal FeedFlow plugin template (no network)",
+  "main": "plugin.js",
+  "feedflow": {
+    "id": "feedflow-plugin-minimal",
+    "name": "Minimal Template",
+    "version": "1.0.0",
+    "description": "A minimal plugin template for FeedFlow",
+    "author": "Your Name",
+    "color": "#6C5CE7",
+    "icon": "🧩"
+  }
+}

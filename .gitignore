@@ -4,3 +4,6 @@ dist/
 .DS_Store
 *.log
 plugins-community/
+
+# Claude Code local (machine-specific) settings
+.claude/settings.local.json
