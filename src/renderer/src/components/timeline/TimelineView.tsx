@@ -57,13 +57,25 @@ export function TimelineView(): JSX.Element {
   useEffect(() => { isRefreshingRef.current = isRefreshing }, [isRefreshing])
   useEffect(() => { selectedSourceIdRef.current = selectedSourceId }, [selectedSourceId])
 
-  // 初始化加载
+  // 初始化加载：先从本地 DB 读取缓存，若没有内容则自动拉取一次最新数据
+  const initialRefreshTriggered = useRef(false)
+
   useEffect(() => {
-    if (!initialLoaded.current) {
-      initialLoaded.current = true
-      loadItems()
-    }
+    if (initialLoaded.current) return
+    initialLoaded.current = true
+    loadItems()
   }, [loadItems])
+
+  // 首次加载完成后自动触发刷新，获取最新内容（每次打开应用都拉取一次）
+  useEffect(() => {
+    if (initialRefreshTriggered.current) return
+    if (timelineLoading) return
+    // 仅在聚合流（selectedSourceId === null）下自动刷新，避免干扰单源浏览
+    if (selectedSourceId !== null) return
+    if (sources.length === 0) return
+    initialRefreshTriggered.current = true
+    refreshAll()
+  }, [timelineLoading, selectedSourceId, sources.length, refreshAll])
 
   // 群聊模式：初始加载后自动滚到底部（最新消息在底部）
   const chatScrolledRef = useRef(false)

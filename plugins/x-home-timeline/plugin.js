@@ -251,37 +251,67 @@ function mapTweetToItem(tweet) {
 }
 
 /**
- * 从推文 legacy.entities.media 中提取媒体 URL（图片和视频缩略图）
+ * 从推文 legacy.entities.media / extended_entities.media 中提取媒体 URL
+ *
+ * - 图片 (photo): 使用 media_url_https + :large 后缀获取最佳质量
+ * - 视频 (video): 从 video_info.variants 中选择最高码率的 mp4 直链，
+ *                 这样前端 <video> 标签可以直接播放（之前只存了 .jpg 缩略图，
+ *                 导致视频永远无法被识别和播放）
+ * - 动图 (animated_gif): 同样从 variants 中取 mp4（X 的 gif 实际是 mp4）
  */
 function extractMediaUrls(legacy) {
   const mediaUrls = []
-  const media = legacy.entities?.media
-  if (!Array.isArray(media)) return mediaUrls
 
-  for (const m of media) {
-    if (m.type === 'photo' && m.media_url_https) {
-      // 使用大图（:large 后缀获取最佳质量）
-      mediaUrls.push(`${m.media_url_https}:large`)
-    } else if (m.type === 'video' && m.media_url_https) {
-      // 视频使用缩略图
-      mediaUrls.push(m.media_url_https)
-    } else if (m.type === 'animated_gif' && m.media_url_https) {
-      mediaUrls.push(m.media_url_https)
-    }
-  }
-
-  // 如果扩展实体中有更高质量的图片，使用之
+  // 优先使用 extended_entities（包含完整的 video_info 变体信息）
   const extendedMedia = legacy.extended_entities?.media
-  if (Array.isArray(extendedMedia)) {
-    for (let i = 0; i < extendedMedia.length && i < mediaUrls.length; i++) {
-      const em = extendedMedia[i]
-      if (em.type === 'photo' && em.media_url_https) {
-        mediaUrls[i] = `${em.media_url_https}:large`
+  const baseMedia = legacy.entities?.media
+  const mediaList = Array.isArray(extendedMedia) && extendedMedia.length > 0
+    ? extendedMedia
+    : (Array.isArray(baseMedia) ? baseMedia : [])
+
+  for (const m of mediaList) {
+    if (!m) continue
+
+    if (m.type === 'photo' && m.media_url_https) {
+      mediaUrls.push(`${m.media_url_https}:large`)
+      continue
+    }
+
+    if ((m.type === 'video' || m.type === 'animated_gif')) {
+      const videoUrl = pickBestVideoUrl(m)
+      if (videoUrl) {
+        mediaUrls.push(videoUrl)
+        continue
       }
+      // 兜底：没有可用视频源时退回缩略图
+      if (m.media_url_https) mediaUrls.push(m.media_url_https)
     }
   }
 
   return mediaUrls
+}
+
+/**
+ * 从 X 视频的 video_info.variants 中挑选最佳可播放源
+ *
+ * variants 结构示例:
+ *   [
+ *     { bitrate: 832000, content_type: "video/mp4", url: "https://video.twimg.com/.../832x468.mp4" },
+ *     { bitrate: 256000, content_type: "video/mp4", url: "https://video.twimg.com/.../480x270.mp4" },
+ *     { content_type: "application/x-mpegURL", url: "https://video.twimg.com/.../playlist.m3u8" }
+ *   ]
+ *
+ * 选择策略: 优先 mp4，取码率最高的（m3u8 需 HLS 支持，桌面端 <video> 不原生支持，跳过）
+ */
+function pickBestVideoUrl(media) {
+  const variants = media?.video_info?.variants
+  if (!Array.isArray(variants) || variants.length === 0) return null
+
+  const mp4s = variants
+    .filter((v) => v && v.content_type === 'video/mp4' && typeof v.url === 'string')
+    .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))
+
+  return mp4s.length > 0 ? mp4s[0].url : null
 }
 
 /**
@@ -375,13 +405,24 @@ async function fetchItems(config, cursor) {
     const tweets = extractTweets(response)
 
     if (tweets.length > 0) {
-      const items = tweets.map(mapTweetToItem)
+      // 单次遍历：映射为 item 并同时过滤掉无效条目（无作者名、无正文、无媒体，
+      // 通常是广告/推荐模块等非推文内容）
+      const items = []
+      for (const tweet of tweets) {
+        const item = mapTweetToItem(tweet)
+        const hasAuthor = item.author.name && item.author.name !== 'unknown'
+        const hasContent = !!item.content.text
+        const hasMedia = item.mediaUrls.length > 0
+        if (hasAuthor && (hasContent || hasMedia)) {
+          items.push(item)
+        }
+      }
 
       // 使用 API 返回的 bottom cursor 作为下一页游标
       const nextCursorValue = extractNextCursor(response)
       const nextCursor = nextCursorValue ? JSON.stringify({ cursor: nextCursorValue }) : null
 
-      console.log(`[x-plugin] fetchItems success: ${items.length} items, hasNextCursor=${!!nextCursor}`)
+      console.log(`[x-plugin] fetchItems success: ${items.length} items (filtered from ${tweets.length}), hasNextCursor=${!!nextCursor}`)
 
       return { items, nextCursor }
     }

@@ -10,6 +10,32 @@ import { decrypt } from './plugin-system/encryption'
 /** 微博相关域名，用于设置 Cookie 和 Referer */
 const WEIBO_DOMAINS = ['.upload.api.weibo.com', '.weibo.com', '.sinaimg.cn', '.sina.com.cn', '.api.weibo.com']
 
+/** X (Twitter) 视频 CDN 域名，请求视频时需要携带 X Cookie 才能播放 */
+const X_VIDEO_DOMAINS = ['video.twimg.com']
+
+/**
+ * 从 DB 中加载某个插件被任一启用源引用的凭据（解密后的 Cookie 字符串）。
+ * 用于在主进程为图片/视频请求注入 Cookie。返回空字符串表示未找到凭据。
+ */
+function loadCookieForPlugin(pluginId: string): string {
+  try {
+    const db = getDb()
+    const row = db.prepare(`
+      SELECT c.value FROM credentials c
+      JOIN sources s ON s.config LIKE '%' || c.id || '%'
+      WHERE s.plugin_id = ?
+      LIMIT 1
+    `).get(pluginId) as { value: string } | undefined
+    if (row) {
+      return decrypt(row.value)
+    }
+    console.log(`[main] No credential found for plugin ${pluginId}`)
+  } catch (e) {
+    console.error(`[main] Failed to load cookie for ${pluginId}:`, (e as Error).message)
+  }
+  return ''
+}
+
 /**
  * 将微博 Cookie 设置到 Electron session 中。
  * @param cookie - 完整的 Cookie 头（"name1=value1; name2=value2"）或单个 Cookie 值
@@ -84,24 +110,12 @@ app.whenReady().then(async () => {
   initializeDatabase()
 
   // 为微博图片请求设置 Referer 和 Cookie，使图片能正常加载
-  let weiboCookie = ''
-  try {
-    const db = getDb()
-    const credRow = db.prepare(`
-      SELECT c.value FROM credentials c
-      JOIN sources s ON s.config LIKE '%' || c.id || '%'
-      WHERE s.plugin_id = 'feedflow-plugin-weibo-group-chat'
-      LIMIT 1
-    `).get()
-    if (credRow) {
-      weiboCookie = decrypt(credRow.value)
-      console.log('[main] Weibo cookie loaded, length:', weiboCookie.length)
-    } else {
-      console.log('[main] No weibo credential found')
-    }
-  } catch (e) {
-    console.error('[main] Failed to load weibo cookie:', e.message)
-  }
+  const weiboCookie = loadCookieForPlugin('feedflow-plugin-weibo-group-chat')
+  if (weiboCookie) console.log('[main] Weibo cookie loaded, length:', weiboCookie.length)
+
+  // 为 X 视频请求加载 Cookie（video.twimg.com 需要登录态才能播放）
+  const xCookie = loadCookieForPlugin('feedflow-plugin-x')
+  if (xCookie) console.log('[main] X cookie loaded, length:', xCookie.length)
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     const url = details.url
@@ -114,6 +128,12 @@ app.whenReady().then(async () => {
       }
     } else if (url.includes('sinaimg.cn') || url.includes('sina.com.cn') || url.includes('weibo.com')) {
       details.requestHeaders['Referer'] = 'https://weibo.com/'
+    } else if (X_VIDEO_DOMAINS.some((d) => url.includes(d))) {
+      // X 视频 CDN 校验 Referer 和 Cookie，否则返回 403/404 导致视频黑屏
+      details.requestHeaders['Referer'] = 'https://x.com/'
+      if (xCookie) {
+        details.requestHeaders['Cookie'] = xCookie
+      }
     }
     callback({ requestHeaders: details.requestHeaders })
   })
