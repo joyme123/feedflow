@@ -23,6 +23,7 @@ export function initializeDatabase(): void {
       enabled       INTEGER NOT NULL DEFAULT 1,
       sort_order    INTEGER NOT NULL DEFAULT 0,
       cursor_value  TEXT,
+      feed_type     TEXT NOT NULL DEFAULT 'timeline',
       created_at    TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (plugin_id) REFERENCES plugins(id) ON DELETE CASCADE
@@ -83,4 +84,11 @@ export function initializeDatabase(): void {
 
     CREATE INDEX IF NOT EXISTS idx_credentials_plugin ON credentials(plugin_id);
   `)
+
+  // Migration: add feed_type column to existing sources table if not present
+  try {
+    db.exec(`ALTER TABLE sources ADD COLUMN feed_type TEXT NOT NULL DEFAULT 'timeline'`)
+  } catch {
+    // Column already exists, ignore
+  }
 }

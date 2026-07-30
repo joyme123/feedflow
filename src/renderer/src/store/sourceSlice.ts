@@ -25,6 +25,7 @@ export interface SourceSlice {
   // Timeline
   items: DisplayItem[]
   hasMore: boolean
+  hasOlderItems: boolean
   nextCursor: string | null
   timelineLoading: boolean
   loadItems: () => Promise<void>
@@ -46,13 +47,20 @@ export const createSourceSlice: StateCreator<SourceSlice, [], [], SourceSlice> =
   pluginsLoading: false,
   items: [],
   hasMore: false,
+  hasOlderItems: true,
   nextCursor: null,
   timelineLoading: false,
   isRefreshing: false,
   refreshProgress: [],
 
   selectSource: (sourceId: string | null) => {
-    set({ selectedSourceId: sourceId })
+    set({
+      selectedSourceId: sourceId,
+      items: [],
+      hasMore: false,
+      hasOlderItems: true,
+      nextCursor: null
+    })
     get().loadItems()
   },
 
@@ -60,6 +68,21 @@ export const createSourceSlice: StateCreator<SourceSlice, [], [], SourceSlice> =
     set({ sourcesLoading: true })
     const sources = await window.api.listSources()
     set({ sources: sources as Source[], sourcesLoading: false })
+
+    // 为微博群聊来源设置图片 Cookie
+    for (const source of sources as Source[]) {
+      if (source.pluginId === 'feedflow-plugin-weibo-group-chat' && source.config) {
+        try {
+          const config = typeof source.config === 'string' ? JSON.parse(source.config) : source.config
+          if (config.cookie) {
+            const subMatch = config.cookie.match(/SUB=([^;]+)/)
+            if (subMatch) {
+              window.api.setWeiboCookie(subMatch[1])
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
   },
 
   addSource: async (input: AddSourceInput) => {
@@ -103,6 +126,8 @@ export const createSourceSlice: StateCreator<SourceSlice, [], [], SourceSlice> =
       hasMore: boolean
       nextCursor: string | null
     }
+    // Ignore a response for a source that is no longer selected.
+    if (get().selectedSourceId !== selectedSourceId) return
     set({
       items: result.items,
       hasMore: result.hasMore,
@@ -112,8 +137,11 @@ export const createSourceSlice: StateCreator<SourceSlice, [], [], SourceSlice> =
   },
 
   loadMoreItems: async () => {
-    const { nextCursor, hasMore, timelineLoading, items, sources, selectedSourceId } = get()
-    if (timelineLoading) return
+    const {
+      nextCursor, hasMore, hasOlderItems, timelineLoading, isRefreshing,
+      items, sources, selectedSourceId
+    } = get()
+    if (timelineLoading || isRefreshing) return
 
     // 如果 DB 中还有更多，先从 DB 加载
     if (hasMore) {
@@ -126,8 +154,12 @@ export const createSourceSlice: StateCreator<SourceSlice, [], [], SourceSlice> =
         hasMore: boolean
         nextCursor: string | null
       }
+      if (get().selectedSourceId !== selectedSourceId) return
       set((state) => ({
-        items: [...state.items, ...result.items],
+        items: [
+          ...state.items,
+          ...result.items.filter((item) => !state.items.some((current) => current.id === item.id))
+        ],
         hasMore: result.hasMore,
         nextCursor: result.nextCursor,
         timelineLoading: false
@@ -135,8 +167,10 @@ export const createSourceSlice: StateCreator<SourceSlice, [], [], SourceSlice> =
       return
     }
 
-    // DB 中没有更多了，尝试从微博源加载更早的内容
-    // 聚合视图下找任意启用的微博源；单源视图下仅当该源是微博时才加载
+    if (!hasOlderItems) return
+
+    // DB 中没有更多了，尝试从源加载更早的内容
+    // 聚合视图下找任意启用的微博源；单源视图下仅当该源是微博或群聊时才加载
     const weiboSource = selectedSourceId
       ? sources.find((s) => s.id === selectedSourceId && s.pluginId === 'feedflow-plugin-weibo' && s.enabled)
       : sources.find((s) => s.pluginId === 'feedflow-plugin-weibo' && s.enabled)
@@ -146,6 +180,20 @@ export const createSourceSlice: StateCreator<SourceSlice, [], [], SourceSlice> =
       const maxId = oldestItem.externalId
       if (maxId) {
         await get().loadOlderItems(weiboSource.id, maxId)
+      }
+      return
+    }
+
+    // 群聊源：从群聊 API 加载更早的消息
+    const groupChatSource = selectedSourceId
+      ? sources.find((s) => s.id === selectedSourceId && s.feedType === 'group-chat' && s.enabled)
+      : null
+    if (groupChatSource && items.length > 0) {
+      // items 按 published_at DESC 排列，最后一项是最旧的消息
+      const oldestItem = items[items.length - 1]
+      const maxId = oldestItem.externalId
+      if (maxId) {
+        await get().loadOlderItems(groupChatSource.id, maxId)
       }
     }
   },
@@ -196,12 +244,26 @@ export const createSourceSlice: StateCreator<SourceSlice, [], [], SourceSlice> =
     if (!maxId) return
     set({ isRefreshing: true })
 
-    const unsubAllComplete = window.api.onRefreshAllComplete(() => {
+    try {
+      const result = await window.api.loadOlderItems(sourceId, maxId) as {
+        items: DisplayItem[]
+        totalFetched: number
+        nextMaxId: string
+        hasMore: boolean
+      }
+      if (get().selectedSourceId !== sourceId) return
+      set((state) => {
+        const existingIds = new Set(state.items.map((item) => item.id))
+        const olderItems = result.items.filter((item) => !existingIds.has(item.id))
+        return {
+          items: [...state.items, ...olderItems].sort(
+            (a, b) => b.publishedAt.localeCompare(a.publishedAt)
+          ),
+          hasOlderItems: result.hasMore
+        }
+      })
+    } finally {
       set({ isRefreshing: false })
-      unsubAllComplete()
-      get().loadItems()
-    })
-
-    await window.api.loadOlderItems(sourceId, maxId)
+    }
   }
 })

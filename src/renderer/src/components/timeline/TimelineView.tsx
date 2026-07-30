@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react'
 import { useStore } from '../../store'
 import { TimelineItem } from './TimelineItem'
 import { TimelineSkeleton } from './TimelineSkeleton'
@@ -15,10 +15,24 @@ const MIN_PULL_DURATION = 400 // 最小持续时间（ms），快速回弹通常
 
 export function TimelineView(): JSX.Element {
   const {
-    items, timelineLoading, hasMore, loadItems, loadMoreItems,
+    items, timelineLoading, hasMore, hasOlderItems, loadItems, loadMoreItems,
     sources, plugins, selectedSourceId, selectSource,
     isRefreshing, refreshAll, refreshSource
   } = useStore()
+
+  // 当前选中的信息源（null 表示聚合流）
+  const selectedSource = selectedSourceId
+    ? sources.find((s) => s.id === selectedSourceId)
+    : null
+  const selectedPlugin = selectedSource
+    ? plugins.find((p) => p.id === selectedSource.pluginId)
+    : null
+
+  // 是否为群聊模式（群聊来源用气泡式展示，不进入聚合流）
+  const isChatMode = selectedSource?.feedType === 'group-chat'
+
+  // 群聊模式：消息按时间正序排列（最旧在顶，最新在底）
+  const displayItems = isChatMode ? [...items].reverse() : items
 
   const sentinelRef = useRef<HTMLDivElement>(null)
   const initialLoaded = useRef(false)
@@ -51,6 +65,79 @@ export function TimelineView(): JSX.Element {
     }
   }, [loadItems])
 
+  // 群聊模式：初始加载后自动滚到底部（最新消息在底部）
+  const chatScrolledRef = useRef(false)
+  const previousChatSourceIdRef = useRef<string | null>(null)
+  const pendingScrollRestoreRef = useRef<{ itemId: string; offsetTop: number } | null>(null)
+  const historyRequestActiveRef = useRef(false)
+
+  const captureChatScrollAnchor = useCallback((container: HTMLElement) => {
+    const firstItem = timelineRef.current?.querySelector<HTMLElement>('[data-chat-item-id]')
+    const itemId = firstItem?.dataset.chatItemId
+    if (!firstItem || !itemId) return
+
+    pendingScrollRestoreRef.current = {
+      itemId,
+      offsetTop: firstItem.getBoundingClientRect().top - container.getBoundingClientRect().top
+    }
+  }, [])
+
+  const loadMoreAtChatTop = useCallback(() => {
+    const container = scrollContainerRef.current
+    const state = useStore.getState()
+    if (
+      !container ||
+      container.scrollTop > TOP_THRESHOLD ||
+      state.timelineLoading ||
+      state.isRefreshing ||
+      (!state.hasMore && !state.hasOlderItems)
+    ) {
+      return
+    }
+
+    captureChatScrollAnchor(container)
+    state.loadMoreItems()
+  }, [captureChatScrollAnchor])
+
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current
+      ?? timelineRef.current?.closest('main') as HTMLElement | null
+    if (!container) return
+    scrollContainerRef.current = container
+
+    if (!isChatMode) {
+      chatScrolledRef.current = false
+      previousChatSourceIdRef.current = null
+      pendingScrollRestoreRef.current = null
+      return
+    }
+
+    if (previousChatSourceIdRef.current !== selectedSourceId) {
+      previousChatSourceIdRef.current = selectedSourceId
+      chatScrolledRef.current = false
+      pendingScrollRestoreRef.current = null
+    }
+
+    if (items.length > 0) {
+      if (!chatScrolledRef.current) {
+        // 首次加载：滚到底部
+        chatScrolledRef.current = true
+        container.scrollTop = container.scrollHeight
+      } else if (pendingScrollRestoreRef.current) {
+        // 旧消息插入列表顶部后，保持加载前第一条可见消息的位置。
+        const snapshot = pendingScrollRestoreRef.current
+        const anchor = timelineRef.current?.querySelector<HTMLElement>(
+          `[data-chat-item-id="${CSS.escape(snapshot.itemId)}"]`
+        )
+        if (anchor) {
+          const nextOffset = anchor.getBoundingClientRect().top - container.getBoundingClientRect().top
+          container.scrollTop += nextOffset - snapshot.offsetTop
+        }
+        pendingScrollRestoreRef.current = null
+      }
+    }
+  }, [isChatMode, items, selectedSourceId])
+
   // 查找滚动容器（CSS Module 类名会被哈希，通过 closest('main') 找到）
   useEffect(() => {
     const el = timelineRef.current?.closest('main') as HTMLElement
@@ -60,20 +147,63 @@ export function TimelineView(): JSX.Element {
   // 无限滚动
   const handleIntersect = useCallback(
     (entries: IntersectionObserverEntry[]) => {
-      if (entries[0].isIntersecting && hasMore && !timelineLoading) {
+      if (
+        entries[0].isIntersecting &&
+        !timelineLoading &&
+        !isRefreshing &&
+        (hasMore || (isChatMode && hasOlderItems))
+      ) {
+        const container = scrollContainerRef.current
+        if (isChatMode && container) {
+          captureChatScrollAnchor(container)
+        }
         loadMoreItems()
       }
     },
-    [hasMore, timelineLoading, loadMoreItems]
+    [
+      hasMore, hasOlderItems, timelineLoading, loadMoreItems,
+      isChatMode, isRefreshing, captureChatScrollAnchor
+    ]
   )
 
   useEffect(() => {
     const el = sentinelRef.current
     if (!el) return
-    const observer = new IntersectionObserver(handleIntersect, { threshold: 0.1 })
+    const observer = new IntersectionObserver(handleIntersect, {
+      root: scrollContainerRef.current,
+      threshold: 0.1
+    })
     observer.observe(el)
     return () => observer.disconnect()
   }, [handleIntersect])
+
+  // Electron 中顶部哨兵在程序化初始滚动后偶尔不会触发观察器。
+  // 群聊模式直接监听真实滚动位置，确保用户滚到顶部时一定加载历史消息。
+  useEffect(() => {
+    if (!isChatMode) return
+    const container = scrollContainerRef.current
+      ?? timelineRef.current?.closest('main') as HTMLElement | null
+    if (!container) return
+    scrollContainerRef.current = container
+
+    container.addEventListener('scroll', loadMoreAtChatTop, { passive: true })
+    return () => container.removeEventListener('scroll', loadMoreAtChatTop)
+  }, [isChatMode, loadMoreAtChatTop, selectedSourceId])
+
+  useEffect(() => {
+    if (!isChatMode) {
+      historyRequestActiveRef.current = false
+      return
+    }
+    if (timelineLoading || isRefreshing) {
+      historyRequestActiveRef.current = true
+      return
+    }
+    if (historyRequestActiveRef.current) {
+      historyRequestActiveRef.current = false
+      pendingScrollRestoreRef.current = null
+    }
+  }, [isChatMode, timelineLoading, isRefreshing])
 
   // 刷新完成后重置下拉状态
   useEffect(() => {
@@ -261,14 +391,86 @@ export function TimelineView(): JSX.Element {
   const hasSources = sources.length > 0
   const isEmpty = !timelineLoading && items.length === 0
 
-  // 当前选中的信息源（null 表示聚合流）
-  const selectedSource = selectedSourceId
-    ? sources.find((s) => s.id === selectedSourceId)
-    : null
-  const selectedPlugin = selectedSource
-    ? plugins.find((p) => p.id === selectedSource.pluginId)
-    : null
+  // 群聊模式：刷新当前来源（加载新消息）
+  const handleChatRefresh = useCallback(() => {
+    if (selectedSourceIdRef.current) {
+      useStore.getState().refreshSource(selectedSourceIdRef.current)
+    }
+  }, [])
 
+  if (isChatMode) {
+    return (
+      <div ref={timelineRef} className={`${styles.timeline} ${styles.chatTimeline}`}>
+        {/* 当前浏览上下文标题 */}
+        <header className={styles.header}>
+          <div className={styles.headerLeft}>
+            <span
+              className={styles.headerDot}
+              style={{ background: selectedPlugin?.color ?? '#888' }}
+            />
+            <h2 className={styles.headerTitle}>{selectedSource?.name}</h2>
+          </div>
+          <button
+            className={styles.clearBtn}
+            onClick={() => selectSource(null)}
+            title="返回聚合流"
+          >
+            返回聚合流
+          </button>
+        </header>
+
+        {timelineLoading && items.length === 0 && (
+          <TimelineSkeleton count={5} />
+        )}
+
+        {isEmpty && (
+          <EmptyState
+            icon="💬"
+            title="暂无群聊消息"
+            description="点击刷新按钮获取最新消息"
+          />
+        )}
+
+        {/* 顶部哨兵：上拉加载更早的消息（群聊模式始终渲染，以便从 API 获取历史消息） */}
+        {items.length > 0 && (
+          <div ref={sentinelRef} className={styles.sentinel}>
+            {timelineLoading && <TimelineSkeleton count={2} />}
+          </div>
+        )}
+
+        {/* 固定高度的状态行，避免加载状态切换导致消息列表整体位移 */}
+        {items.length > 0 && (
+          <p className={styles.chatHint}>
+            {timelineLoading || isRefreshing
+              ? '正在加载更早的消息...'
+              : hasOlderItems
+                ? '上拉查看更多消息'
+                : '没有更早的消息了'}
+          </p>
+        )}
+
+        {/* 消息列表（时间正序：最旧在顶，最新在底） */}
+        {displayItems.map((item) => (
+          <TimelineItem key={item.id} item={item} />
+        ))}
+
+        {/* 底部：新消息提示与刷新按钮 */}
+        {!isEmpty && (
+          <div className={styles.chatBottom}>
+            <button
+              className={styles.chatRefreshBtn}
+              onClick={handleChatRefresh}
+              disabled={isRefreshing}
+            >
+              {isRefreshing ? '刷新中...' : '查看新消息'}
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ---- 普通信息流模式 ----
   return (
     <div ref={timelineRef} className={styles.timeline}>
       {/* 下拉刷新指示器 */}

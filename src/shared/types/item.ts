@@ -30,6 +30,7 @@ export interface DisplayItem {
   pluginId: string
   pluginName: string
   pluginColor: string
+  feedType: string
   externalId: string
   authorName: string
   authorAvatar: string

@@ -13,6 +13,8 @@ const api = {
   getPluginConfigSchema: (pluginId: string) => ipcRenderer.invoke('plugins:get-config-schema', pluginId),
   verifyCookie: (pluginId: string, cookie: string) =>
     ipcRenderer.invoke('plugins:verify-cookie', { pluginId, cookie }),
+  listGroups: (pluginId: string, credentialId: string) =>
+    ipcRenderer.invoke('plugins:list-groups', { pluginId, credentialId }),
 
   // Credentials
   listCredentials: (pluginId?: string) => ipcRenderer.invoke('credentials:list', { pluginId }),
@@ -21,6 +23,9 @@ const api = {
   removeCredential: (id: string) => ipcRenderer.invoke('credentials:remove', id),
   countCredentialReferences: (pluginId: string, credentialId: string) =>
     ipcRenderer.invoke('credentials:count-references', { pluginId, credentialId }),
+
+  // Weibo
+  setWeiboCookie: (cookie: string) => ipcRenderer.invoke('set-weibo-cookie', cookie),
 
   // Timeline
   listItems: (params: unknown) => ipcRenderer.invoke('timeline:list', params),

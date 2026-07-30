@@ -37,6 +37,7 @@ function enrichItems(items: Item[]): DisplayItem[] {
       pluginId: item.pluginId,
       pluginName: pi.name,
       pluginColor: pi.color,
+      feedType: source?.feedType ?? 'timeline',
       externalId: item.externalId,
       authorName: item.authorName,
       authorAvatar: item.authorAvatar,
@@ -94,6 +95,20 @@ export function registerIpcHandlers(): void {
     return await verifyCookie(cookie)
   })
 
+  ipcMain.handle('plugins:list-groups', async (_e, { pluginId, credentialId }: { pluginId: string; credentialId: string }) => {
+    const mod = getModule(pluginId)
+    if (!mod || typeof mod.listGroups !== 'function') {
+      throw new Error(`Plugin ${pluginId} does not support group listing`)
+    }
+    // Resolve credential to raw cookie value
+    const cred = credentialQueries.getCredentialById(credentialId)
+    if (!cred) {
+      throw new Error('Credential not found')
+    }
+    const listGroups = mod.listGroups as (cookie: string) => Promise<{ label: string; value: string }[]>
+    return await listGroups(cred.value)
+  })
+
   // ---- Credentials ----
   ipcMain.handle('credentials:list', (_e, filter?: { pluginId?: string }) => {
     return credentialQueries.listCredentials(filter?.pluginId)
@@ -134,10 +149,10 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('timeline:load-older', async (_e, { sourceId, maxId }: { sourceId: string; maxId: string }) => {
     const sources = getEnabledSources()
     const source = sources.find((s) => s.id === sourceId)
-    if (!source) return { totalFetched: 0 }
+    if (!source) return { items: [], totalFetched: 0, nextMaxId: maxId, hasMore: false }
 
     const plugin = getPlugin(source.pluginId)
-    if (!plugin) return { totalFetched: 0 }
+    if (!plugin) return { items: [], totalFetched: 0, nextMaxId: maxId, hasMore: false }
 
     let config: SourceConfig = {}
     try {
@@ -157,6 +172,8 @@ export function registerIpcHandlers(): void {
     })
 
     try {
+      const itemCountBefore = itemQueries.countItemsBySource(source.id)
+
       // 使用 maxId 游标加载更早的微博
       const cursor = JSON.stringify({ maxId })
       const result = await plugin.fetchItems(config, cursor)
@@ -165,7 +182,8 @@ export function registerIpcHandlers(): void {
         upsertItem(source.id, source.pluginId, item)
       }
 
-      // 更新 source 的游标，保留 sinceId，更新 maxId
+      // 使用插件计算出的 API 边界更新游标。不能依赖 items 数组顺序，
+      // 群聊 API 的返回顺序不稳定，且插件可能过滤掉系统消息。
       const existingCursor = source.cursorValue
       let sinceId = ''
       try {
@@ -173,23 +191,34 @@ export function registerIpcHandlers(): void {
         sinceId = parsed.sinceId || ''
       } catch { /* ignore */ }
 
-      const newMaxId = result.items.length > 0
-        ? result.items[result.items.length - 1].externalId
-        : maxId
+      let nextMaxId = maxId
+      try {
+        const parsed = JSON.parse(result.nextCursor || '{}')
+        nextMaxId = parsed.maxId || maxId
+        sinceId = sinceId || parsed.sinceId || ''
+      } catch { /* keep current boundary */ }
+
       updateSource(source.id, {
-        cursorValue: JSON.stringify({ sinceId, maxId: newMaxId })
+        cursorValue: JSON.stringify({ sinceId, maxId: nextMaxId })
       })
+
+      const totalFetched = itemQueries.countItemsBySource(source.id) - itemCountBefore
+      const hasMore = nextMaxId !== maxId
+      const pageItems = itemQueries.getItemsByExternalIds(
+        source.id,
+        result.items.map((item) => item.externalId)
+      )
 
       win?.webContents.send('refresh:complete', {
         sourceId: source.id,
-        itemsFetched: result.items.length
+        itemsFetched: totalFetched
       })
 
-      return { totalFetched: result.items.length }
+      return { items: enrichItems(pageItems), totalFetched, nextMaxId, hasMore }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err)
       console.error(`[Runner] Error loading older for ${source.id}:`, errorMessage)
-      return { totalFetched: 0 }
+      return { items: [], totalFetched: 0, nextMaxId: maxId, hasMore: false }
     }
   })
 }

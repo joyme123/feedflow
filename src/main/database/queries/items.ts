@@ -41,6 +41,7 @@ export function listItems(params: TimelineListParams = {}): { items: Item[]; has
       queryParams = [...params.sourceIds, limit + 1]
     }
   } else {
+    // Aggregated feed: exclude group-chat sources (they are viewed separately)
     if (cursor) {
       query = `
         SELECT id, source_id as sourceId, plugin_id as pluginId, external_id as externalId,
@@ -50,6 +51,7 @@ export function listItems(params: TimelineListParams = {}): { items: Item[]; has
                fetched_at as fetchedAt, cursor_value as cursorValue, metadata
         FROM items
         WHERE published_at < ?
+          AND source_id NOT IN (SELECT id FROM sources WHERE feed_type = 'group-chat')
         ORDER BY published_at DESC
         LIMIT ?
       `
@@ -62,6 +64,7 @@ export function listItems(params: TimelineListParams = {}): { items: Item[]; has
                media_urls as mediaUrls, permalink, published_at as publishedAt,
                fetched_at as fetchedAt, cursor_value as cursorValue, metadata
         FROM items
+        WHERE source_id NOT IN (SELECT id FROM sources WHERE feed_type = 'group-chat')
         ORDER BY published_at DESC
         LIMIT ?
       `
@@ -122,4 +125,21 @@ export function countItemsBySource(sourceId: string): number {
   const db = getDb()
   const row = db.prepare('SELECT COUNT(*) as count FROM items WHERE source_id = ?').get(sourceId) as { count: number }
   return row.count
+}
+
+export function getItemsByExternalIds(sourceId: string, externalIds: string[]): Item[] {
+  if (externalIds.length === 0) return []
+
+  const db = getDb()
+  const placeholders = externalIds.map(() => '?').join(',')
+  return db.prepare(`
+    SELECT id, source_id as sourceId, plugin_id as pluginId, external_id as externalId,
+           author_name as authorName, author_avatar as authorAvatar,
+           content_text as contentText, content_html as contentHtml,
+           media_urls as mediaUrls, permalink, published_at as publishedAt,
+           fetched_at as fetchedAt, cursor_value as cursorValue, metadata
+    FROM items
+    WHERE source_id = ? AND external_id IN (${placeholders})
+    ORDER BY published_at DESC
+  `).all(sourceId, ...externalIds) as Item[]
 }

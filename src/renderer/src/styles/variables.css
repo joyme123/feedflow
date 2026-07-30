@@ -5,6 +5,7 @@
   --color-bg-tertiary: #e9ecef;
   --color-text: #1a1a2e;
   --color-text-secondary: #6c757d;
+  --color-text-tertiary: #adb5bd;
   --color-border: #dee2e6;
   --color-primary: #4f46e5;
   --color-primary-hover: #4338ca;
@@ -22,6 +23,7 @@
   /* Typography */
   --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-size-xs: 11px;
   --font-size-sm: 12px;
   --font-size-base: 14px;
   --font-size-lg: 16px;
@@ -49,6 +51,7 @@
     --color-bg-tertiary: #0f3460;
     --color-text: #e8e8e8;
     --color-text-secondary: #a0a0b0;
+    --color-text-tertiary: #6b6b80;
     --color-border: #2a2a4a;
     --color-primary: #818cf8;
     --color-primary-hover: #6366f1;

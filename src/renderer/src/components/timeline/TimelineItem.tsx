@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Badge } from '../common/Badge'
 import { ImageLightbox } from '../common/ImageLightbox'
 import type { DisplayItem } from '@shared/types/item'
+import { buildChatHtml } from './chatEmoji'
 import styles from './TimelineItem.module.css'
 
 interface TimelineItemProps {
@@ -30,6 +31,9 @@ function formatFullTime(isoString: string): string {
 export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
+
+  // 判断是否为群聊模式（群聊类型的消息用气泡式展示）
+  const isChat = item.feedType === 'group-chat'
 
   // 解析 metadata（包含 isTruncated 等插件侧标记）
   let metadata: Record<string, unknown> = {}
@@ -62,6 +66,64 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
     (url) => !url.endsWith('.mp4') && !url.endsWith('.mov') && !url.includes('video')
   )
 
+  if (isChat) {
+    const chatHtml = buildChatHtml(item.contentText || '')
+    return (
+      <article className={styles.chatItem} data-chat-item-id={item.id}>
+        <div className={styles.chatHeader}>
+          {item.authorAvatar ? (
+            <img className={styles.chatAvatar} src={item.authorAvatar} alt="" />
+          ) : (
+            <span className={styles.chatAvatarPlaceholder}>
+              {item.authorName.charAt(0).toUpperCase()}
+            </span>
+          )}
+          <span className={styles.chatAuthorName}>{item.authorName}</span>
+          <time className={styles.chatTime} dateTime={item.publishedAt} title={formatFullTime(item.publishedAt)}>
+            {formatRelativeTime(item.publishedAt)}
+          </time>
+        </div>
+
+        <div className={styles.chatBody}>
+          <div
+            className={`${styles.chatContent} ${contentCollapsed ? styles.chatContentCollapsed : ''}`}
+            dangerouslySetInnerHTML={{ __html: chatHtml }}
+          />
+
+          {needsExpand && (
+            <button
+              className={styles.chatExpandButton}
+              onClick={() => setExpanded((prev) => !prev)}
+            >
+              {expanded ? '收起' : '展开'}
+            </button>
+          )}
+
+          {imageUrls.length > 0 && (
+            <div className={`${styles.chatMediaGrid} ${imageUrls.length === 1 ? styles.single : ''}`}>
+              {imageUrls.slice(0, 4).map((url, i) => (
+                <img
+                  key={i}
+                  className={styles.chatMedia}
+                  src={url}
+                  alt=""
+                  loading="lazy"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  onClick={() => setLightboxSrc(url)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {lightboxSrc && (
+          <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+        )}
+      </article>
+    )
+  }
+
+  // ---- 普通模式：卡片式展示 ----
   return (
     <article className={styles.card}>
       <div className={styles.header}>

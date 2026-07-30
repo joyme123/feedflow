@@ -33,15 +33,41 @@ export function SourceConfigForm({ schema, onSubmit, submitting, pluginId }: Sou
   const [credVerifySuccess, setCredVerifySuccess] = useState<{ uid?: string; screenName?: string } | null>(null)
   const [credSaving, setCredSaving] = useState(false)
 
+  // Dynamic group options for weibo-group-chat plugin
+  const [groupOptions, setGroupOptions] = useState<{ label: string; value: string }[]>([])
+  const [groupLoading, setGroupLoading] = useState(false)
+
   // Load credentials for the current plugin so the dropdown can list them
   useEffect(() => {
     loadCredentials()
   }, [loadCredentials])
 
+  // Load group options when a credential is selected for weibo-group-chat
+  useEffect(() => {
+    const credId = values['cookie'] as string | undefined
+    if (pluginId === 'feedflow-plugin-weibo-group-chat' && credId) {
+      setGroupLoading(true)
+      window.api.listGroups(pluginId, credId)
+        .then((groups) => {
+          setGroupOptions(groups as { label: string; value: string }[])
+        })
+        .catch((err) => {
+          console.error('Failed to load groups:', err)
+          setGroupOptions([])
+        })
+        .finally(() => setGroupLoading(false))
+    } else {
+      setGroupOptions([])
+    }
+  }, [pluginId, values['cookie']])
+
   // 插件支持 Cookie 验证（配置中包含 cookie 字段，且不是 credential 类型）
   const supportsCookieVerify = !!pluginId && schema.some((f) => f.key === 'cookie' && f.type !== 'credential')
 
-  const pluginCredentials = credentials.filter((c) => c.pluginId === pluginId)
+  // Show credentials from all plugins so cookies can be shared across
+  // plugins that use the same auth (e.g. weibo.com cookie works for both
+  // 微博关注流 and 微博群聊)
+  const pluginCredentials = credentials
 
   const handleChange = (key: string, value: unknown) => {
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -267,17 +293,32 @@ export function SourceConfigForm({ schema, onSubmit, submitting, pluginId }: Sou
           )}
 
           {field.type === 'select' && (
-            <select
-              className={styles.input}
-              value={(values[field.key] as string) ?? ''}
-              onChange={(e) => handleChange(field.key, e.target.value)}
-            >
-              {field.options?.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+            <div>
+              <select
+                className={styles.input}
+                value={(values[field.key] as string) ?? ''}
+                onChange={(e) => handleChange(field.key, e.target.value)}
+              >
+                <option value="">
+                  {field.key === 'group_id'
+                    ? (groupLoading ? '加载群聊列表中...' : '请选择群聊' + (groupOptions.length === 0 ? '（请先选择凭据）' : ''))
+                    : '请选择'}
                 </option>
-              ))}
-            </select>
+                {(field.key === 'group_id' && groupOptions.length > 0
+                  ? groupOptions
+                  : (field.options ?? [])
+                ).map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              {field.key === 'group_id' && groupOptions.length === 0 && !groupLoading && (
+                <span className={styles.help}>
+                  请先选择上方的微博凭据，群聊列表将自动加载。
+                </span>
+              )}
+            </div>
           )}
 
           {field.type === 'boolean' && (

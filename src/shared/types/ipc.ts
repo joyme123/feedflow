@@ -1,5 +1,5 @@
 import type { Source, AddSourceInput } from './source'
-import type { Item, TimelineListParams, RefreshProgress } from './item'
+import type { Item, DisplayItem, TimelineListParams, RefreshProgress } from './item'
 import type { PluginMeta, ConfigField } from './plugin'
 import type { Credential, AddCredentialInput, UpdateCredentialInput } from './credential'
 
@@ -14,6 +14,7 @@ export interface IpcChannelMap {
   'plugins:list': { in: void; out: PluginMeta[] }
   'plugins:get-config-schema': { in: string; out: ConfigField[] }
   'plugins:verify-cookie': { in: { pluginId: string; cookie: string }; out: { valid: boolean; uid?: string; screenName?: string; error?: string } }
+  'plugins:list-groups': { in: { pluginId: string; credentialId: string }; out: { label: string; value: string }[] }
 
   'credentials:list': { in: { pluginId?: string } | void; out: Credential[] }
   'credentials:add': { in: AddCredentialInput; out: Credential }
@@ -23,7 +24,15 @@ export interface IpcChannelMap {
 
   'timeline:list': { in: TimelineListParams; out: { items: Item[]; hasMore: boolean; nextCursor: string | null } }
   'timeline:refresh': { in: { sourceIds?: string[] }; out: { totalFetched: number } }
-  'timeline:load-older': { in: { sourceId: string; maxId: string }; out: { totalFetched: number } }
+  'timeline:load-older': {
+    in: { sourceId: string; maxId: string }
+    out: {
+      items: DisplayItem[]
+      totalFetched: number
+      nextMaxId: string
+      hasMore: boolean
+    }
+  }
 }
 
 /** Events pushed from main to renderer */

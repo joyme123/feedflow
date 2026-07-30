@@ -2,6 +2,11 @@
 // Plugin Interface — the core contract every plugin must satisfy
 // ============================================================
 
+/** Feed type determines how a source's items are displayed.
+ *  'timeline' = regular feed (default, included in aggregated feed)
+ *  'group-chat' = conversational group chat (excluded from aggregated feed, viewed separately) */
+export type FeedType = 'timeline' | 'group-chat'
+
 /** Static metadata describing a plugin */
 export interface PluginMeta {
   id: string
@@ -12,6 +17,7 @@ export interface PluginMeta {
   icon?: string
   color?: string
   homepage?: string
+  feedType?: FeedType
 }
 
 /** A single configuration field rendered as a form input */

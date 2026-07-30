@@ -1,4 +1,4 @@
-import type { SourceConfig } from './plugin'
+import type { SourceConfig, FeedType } from './plugin'
 
 /** A user-configured information source */
 export interface Source {
@@ -9,6 +9,8 @@ export interface Source {
   enabled: boolean
   sortOrder: number
   cursorValue: string | null
+  /** Feed type inherited from the plugin: 'timeline' (default) or 'group-chat' */
+  feedType: FeedType
   createdAt: string
   updatedAt: string
 }
