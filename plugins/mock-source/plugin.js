@@ -76,7 +76,9 @@ const meta = {
   version: '1.0.0',
   description: 'A simulated information source for FeedFlow development and testing',
   author: 'FeedFlow',
-  color: '#6C5CE7'
+  color: '#6C5CE7',
+  provider: 'mock',
+  providerName: 'Mock'
 }
 
 const configSchema = [

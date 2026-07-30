@@ -35,7 +35,9 @@ const meta = {
   version: '4.0.0',
   description: '免费自动获取微博关注信息流（基于 weibo.com AJAX API，无需 OAuth）',
   author: 'FeedFlow',
-  color: '#E6162D'
+  color: '#E6162D',
+  provider: 'weibo',
+  providerName: '微博'
 }
 
 // ============================================================

@@ -35,7 +35,9 @@ const meta = {
   description: '获取微博群聊中的最新消息（基于 api.weibo.com 群聊 API，无需 OAuth）',
   author: 'FeedFlow',
   color: '#E6162D',
-  feedType: 'group-chat'
+  feedType: 'group-chat',
+  provider: 'weibo',
+  providerName: '微博'
 }
 
 // ============================================================

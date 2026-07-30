@@ -38,7 +38,9 @@ const meta = {
   version: '1.0.0',
   description: '免费自动获取 X（Twitter）关注信息流（基于 x.com GraphQL API，无需 OAuth）',
   author: 'FeedFlow',
-  color: '#1DA1F2'
+  color: '#1DA1F2',
+  provider: 'x',
+  providerName: 'X'
 }
 
 // ============================================================
