@@ -17,12 +17,12 @@ const api = {
     ipcRenderer.invoke('plugins:list-groups', { pluginId, credentialId }),
 
   // Credentials
-  listCredentials: (pluginId?: string) => ipcRenderer.invoke('credentials:list', { pluginId }),
+  listCredentials: (provider?: string) => ipcRenderer.invoke('credentials:list', { provider }),
   addCredential: (input: unknown) => ipcRenderer.invoke('credentials:add', input),
   updateCredential: (id: string, data: unknown) => ipcRenderer.invoke('credentials:update', { id, data }),
   removeCredential: (id: string) => ipcRenderer.invoke('credentials:remove', id),
-  countCredentialReferences: (pluginId: string, credentialId: string) =>
-    ipcRenderer.invoke('credentials:count-references', { pluginId, credentialId }),
+  countCredentialReferences: (provider: string, credentialId: string) =>
+    ipcRenderer.invoke('credentials:count-references', { provider, credentialId }),
 
   // Weibo
   setWeiboCookie: (cookie: string) => ipcRenderer.invoke('set-weibo-cookie', cookie),

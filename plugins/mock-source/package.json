@@ -10,6 +10,7 @@
     "description": "Generates fake timeline items for development",
     "author": "FeedFlow",
     "color": "#6C5CE7",
-    "icon": "🧪"
+    "icon": "🧪",
+    "provider": "mock"
   }
 }

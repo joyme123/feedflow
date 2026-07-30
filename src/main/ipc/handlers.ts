@@ -110,8 +110,8 @@ export function registerIpcHandlers(): void {
   })
 
   // ---- Credentials ----
-  ipcMain.handle('credentials:list', (_e, filter?: { pluginId?: string }) => {
-    return credentialQueries.listCredentials(filter?.pluginId)
+  ipcMain.handle('credentials:list', (_e, filter?: { provider?: string }) => {
+    return credentialQueries.listCredentials(filter?.provider)
   })
 
   ipcMain.handle('credentials:add', (_e, input: AddCredentialInput) => {
@@ -126,8 +126,8 @@ export function registerIpcHandlers(): void {
     credentialQueries.removeCredential(id)
   })
 
-  ipcMain.handle('credentials:count-references', (_e, { pluginId, credentialId }: { pluginId: string; credentialId: string }) => {
-    const count = credentialQueries.countSourcesByCredentialId(pluginId, credentialId)
+  ipcMain.handle('credentials:count-references', (_e, { credentialId }: { provider: string; credentialId: string }) => {
+    const count = credentialQueries.countSourcesByCredentialId(credentialId)
     return { count }
   })
 

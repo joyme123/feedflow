@@ -14,7 +14,7 @@ interface SourceConfigFormProps {
 }
 
 export function SourceConfigForm({ schema, onSubmit, submitting, pluginId, onDynamicOptionsChange }: SourceConfigFormProps): JSX.Element {
-  const { credentials, loadCredentials } = useStore()
+  const { credentials, loadCredentials, plugins } = useStore()
   const [values, setValues] = useState<SourceConfig>(() => {
     const defaults: SourceConfig = {}
     for (const field of schema) {
@@ -69,10 +69,11 @@ export function SourceConfigForm({ schema, onSubmit, submitting, pluginId, onDyn
   // 插件支持 Cookie 验证（配置中包含 cookie 字段，且不是 credential 类型）
   const supportsCookieVerify = !!pluginId && schema.some((f) => f.key === 'cookie' && f.type !== 'credential')
 
-  // Show credentials from all plugins so cookies can be shared across
-  // plugins that use the same auth (e.g. weibo.com cookie works for both
-  // 微博关注流 and 微博群聊)
-  const pluginCredentials = credentials
+  // Show credentials of the current plugin's service provider so cookies
+  // can be shared across plugins of the same provider (e.g. 微博关注流 and
+  // 微博群聊 share one weibo cookie).
+  const currentProvider = plugins.find((p) => p.id === pluginId)?.provider ?? pluginId
+  const pluginCredentials = credentials.filter((c) => c.provider === currentProvider)
 
   const handleChange = (key: string, value: unknown) => {
     setValues((prev) => ({ ...prev, [key]: value }))
@@ -156,7 +157,7 @@ export function SourceConfigForm({ schema, onSubmit, submitting, pluginId, onDyn
       if (credVerifySuccess?.uid) extra.uid = credVerifySuccess.uid
       if (credVerifySuccess?.screenName) extra.screenName = credVerifySuccess.screenName
       const cred = await window.api.addCredential({
-        pluginId,
+        provider: currentProvider,
         name: newCredName.trim(),
         value: newCredValue,
         extra

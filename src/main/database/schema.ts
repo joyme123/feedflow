@@ -73,16 +73,15 @@ export function initializeDatabase(): void {
 
     CREATE TABLE IF NOT EXISTS credentials (
       id          TEXT PRIMARY KEY,
-      plugin_id   TEXT NOT NULL,
+      provider    TEXT NOT NULL,
       name        TEXT NOT NULL,
       value       TEXT NOT NULL,
       extra       TEXT NOT NULL DEFAULT '{}',
       created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at  TEXT NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (plugin_id) REFERENCES plugins(id) ON DELETE CASCADE
+      updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE INDEX IF NOT EXISTS idx_credentials_plugin ON credentials(plugin_id);
+    CREATE INDEX IF NOT EXISTS idx_credentials_provider ON credentials(provider);
   `)
 
   // Migration: add feed_type column to existing sources table if not present
@@ -90,5 +89,24 @@ export function initializeDatabase(): void {
     db.exec(`ALTER TABLE sources ADD COLUMN feed_type TEXT NOT NULL DEFAULT 'timeline'`)
   } catch {
     // Column already exists, ignore
+  }
+
+  // Migration: credentials.plugin_id -> credentials.provider
+  // Existing credentials were scoped to a plugin; re-scope them to the
+  // plugin's provider (defaulting to the plugin id) so they can be shared
+  // across plugins of the same service provider.
+  try {
+    const cols = db.prepare("PRAGMA table_info(credentials)").all() as { name: string }[]
+    const hasPluginId = cols.some((c) => c.name === 'plugin_id')
+    const hasProvider = cols.some((c) => c.name === 'provider')
+    if (hasPluginId && !hasProvider) {
+      db.exec(`ALTER TABLE credentials ADD COLUMN provider TEXT`)
+      // Backfill: use the plugin's provider if known, else the plugin id.
+      // (plugins table doesn't store provider yet; fall back to plugin_id.)
+      db.exec(`UPDATE credentials SET provider = plugin_id WHERE provider IS NULL`)
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_credentials_provider ON credentials(provider)`)
+    }
+  } catch (err) {
+    console.error('[Schema] credentials provider migration failed:', err)
   }
 }

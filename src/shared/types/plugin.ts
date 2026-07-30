@@ -18,6 +18,13 @@ export interface PluginMeta {
   color?: string
   homepage?: string
   feedType?: FeedType
+  /**
+   * Service provider this plugin belongs to. Credentials are scoped to a
+   * provider, so multiple plugins of the same provider (e.g. "微博关注流"
+   * and "微博群聊" both under "weibo") can share the same cookie.
+   * Defaults to the plugin id when not specified.
+   */
+  provider?: string
 }
 
 /** A single configuration field rendered as a form input */

@@ -16,11 +16,11 @@ export interface IpcChannelMap {
   'plugins:verify-cookie': { in: { pluginId: string; cookie: string }; out: { valid: boolean; uid?: string; screenName?: string; error?: string } }
   'plugins:list-groups': { in: { pluginId: string; credentialId: string }; out: { label: string; value: string }[] }
 
-  'credentials:list': { in: { pluginId?: string } | void; out: Credential[] }
+  'credentials:list': { in: { provider?: string } | void; out: Credential[] }
   'credentials:add': { in: AddCredentialInput; out: Credential }
   'credentials:update': { in: { id: string; data: UpdateCredentialInput }; out: Credential }
   'credentials:remove': { in: string; out: void }
-  'credentials:count-references': { in: { pluginId: string; credentialId: string }; out: { count: number } }
+  'credentials:count-references': { in: { provider: string; credentialId: string }; out: { count: number } }
 
   'timeline:list': { in: TimelineListParams; out: { items: Item[]; hasMore: boolean; nextCursor: string | null } }
   'timeline:refresh': { in: { sourceIds?: string[] }; out: { totalFetched: number } }
