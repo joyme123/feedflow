@@ -81,8 +81,6 @@ export function initializeDatabase(): void {
       created_at  TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
-
-    CREATE INDEX IF NOT EXISTS idx_credentials_provider ON credentials(provider);
   `)
 
   // Migration: add feed_type column to existing sources table if not present
@@ -110,10 +108,20 @@ export function initializeDatabase(): void {
   // We rebuild the table to also drop the old plugin_id column and its
   // FOREIGN KEY ... ON DELETE CASCADE constraint (which would otherwise
   // cascade-delete credentials when a plugin is removed).
+  //
+  // Handles all starting states:
+  //   - old DB: credentials has plugin_id, no provider
+  //   - intermediate DB (previous migration): credentials has both
+  //   - new DB: credentials has provider only (skip)
+  // Also cleans up a leftover credentials_new from a failed prior run.
   try {
-    const cols = db.prepare("PRAGMA table_info(credentials)").all() as { name: string }[]
-    const hasPluginId = cols.some((c) => c.name === 'plugin_id')
-    if (hasPluginId) {
+    const credCols = db.prepare("PRAGMA table_info(credentials)").all() as { name: string }[]
+    const hasPluginId = credCols.some((c) => c.name === 'plugin_id')
+    if (!hasPluginId) {
+      // Already migrated (or fresh). Just ensure no leftover temp table.
+      db.exec(`DROP TABLE IF EXISTS credentials_new`)
+    } else {
+      db.exec(`DROP TABLE IF EXISTS credentials_new`)
       db.exec(`
         CREATE TABLE credentials_new (
           id          TEXT PRIMARY KEY,
@@ -127,6 +135,7 @@ export function initializeDatabase(): void {
       `)
       // Backfill provider from the plugins table (real provider if set,
       // else fall back to the plugin id so the credential isn't lost).
+      // The plugins migration above guarantees p.provider exists.
       db.exec(`
         INSERT INTO credentials_new (id, provider, name, value, extra, created_at, updated_at)
         SELECT c.id,
@@ -141,5 +150,12 @@ export function initializeDatabase(): void {
     }
   } catch (err) {
     console.error('[Schema] credentials provider migration failed:', err)
+  }
+
+  // By now credentials always has a provider column (fresh or migrated).
+  try {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_credentials_provider ON credentials(provider)`)
+  } catch (err) {
+    console.error('[Schema] credentials index creation failed:', err)
   }
 }
