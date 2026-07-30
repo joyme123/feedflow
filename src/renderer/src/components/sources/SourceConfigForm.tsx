@@ -9,9 +9,11 @@ interface SourceConfigFormProps {
   onSubmit: (config: SourceConfig) => Promise<void>
   submitting: boolean
   pluginId?: string
+  /** 运行时动态加载的选项变化时通知父组件（用于生成更准确的信息源名称） */
+  onDynamicOptionsChange?: (key: string, options: { label: string; value: string }[]) => void
 }
 
-export function SourceConfigForm({ schema, onSubmit, submitting, pluginId }: SourceConfigFormProps): JSX.Element {
+export function SourceConfigForm({ schema, onSubmit, submitting, pluginId, onDynamicOptionsChange }: SourceConfigFormProps): JSX.Element {
   const { credentials, loadCredentials } = useStore()
   const [values, setValues] = useState<SourceConfig>(() => {
     const defaults: SourceConfig = {}
@@ -49,11 +51,14 @@ export function SourceConfigForm({ schema, onSubmit, submitting, pluginId }: Sou
       setGroupLoading(true)
       window.api.listGroups(pluginId, credId)
         .then((groups) => {
-          setGroupOptions(groups as { label: string; value: string }[])
+          const opts = groups as { label: string; value: string }[]
+          setGroupOptions(opts)
+          onDynamicOptionsChange?.('group_id', opts)
         })
         .catch((err) => {
           console.error('Failed to load groups:', err)
           setGroupOptions([])
+          onDynamicOptionsChange?.('group_id', [])
         })
         .finally(() => setGroupLoading(false))
     } else {

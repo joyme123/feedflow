@@ -11,6 +11,7 @@ export interface SourceSlice {
   addSource: (input: AddSourceInput) => Promise<Source>
   removeSource: (id: string) => Promise<void>
   toggleSource: (id: string) => Promise<void>
+  renameSource: (id: string, name: string) => Promise<void>
 
   // Selected source (null = aggregated view of all sources)
   selectedSourceId: string | null
@@ -102,6 +103,13 @@ export const createSourceSlice: StateCreator<SourceSlice, [], [], SourceSlice> =
 
   toggleSource: async (id: string) => {
     await window.api.toggleSource(id)
+    await get().loadSources()
+  },
+
+  renameSource: async (id: string, name: string) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    await window.api.updateSource(id, { name: trimmed })
     await get().loadSources()
   },
 

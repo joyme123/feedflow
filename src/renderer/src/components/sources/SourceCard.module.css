@@ -51,6 +51,19 @@
   text-overflow: ellipsis;
 }
 
+.renameInput {
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  font-family: inherit;
+  color: inherit;
+  background: var(--color-bg);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 1px 6px;
+  width: 140px;
+  outline: none;
+}
+
 .pluginName {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
@@ -146,10 +159,13 @@
   border: none;
   background: none;
   font-size: var(--font-size-base);
-  color: var(--color-danger);
+  color: var(--color-text);
   text-align: left;
   cursor: pointer;
 }
 .menuItem:hover {
   background: var(--color-bg-secondary);
+}
+.menuItemDanger {
+  color: var(--color-danger);
 }
