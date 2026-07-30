@@ -4,7 +4,7 @@ import { Button } from '../common/Button'
 import type { Credential } from '@shared/types'
 import styles from './CredentialsPanel.module.css'
 
-const EMPTY_FORM = { name: '', value: '' }
+const EMPTY_FORM = { name: '', value: '', pluginId: '' }
 
 /**
  * Credential management UI without a Dialog wrapper.
@@ -45,18 +45,20 @@ export function CredentialsPanel(): JSX.Element {
 
   const startAdd = () => {
     resetForm()
+    // 若当前筛选了具体插件，默认带入；否则留空让用户在表单中选择
+    setForm((f) => ({ ...f, pluginId: filterPluginId === 'all' ? '' : filterPluginId }))
     setAdding(true)
   }
 
   const startEdit = (cred: Credential) => {
     resetForm()
     setEditingId(cred.id)
-    setForm({ name: cred.name, value: cred.value })
+    setForm({ name: cred.name, value: cred.value, pluginId: cred.pluginId })
   }
 
   const handleVerify = async () => {
-    if (!filterPluginId || filterPluginId === 'all') {
-      setVerifyError('请先选择一个插件以验证凭据')
+    if (!form.pluginId) {
+      setVerifyError('请先选择所属插件以验证凭据')
       return
     }
     if (!form.value.trim()) {
@@ -67,7 +69,7 @@ export function CredentialsPanel(): JSX.Element {
     setVerifyError(null)
     setVerifySuccess(null)
     try {
-      const result = await window.api.verifyCookie(filterPluginId, form.value)
+      const result = await window.api.verifyCookie(form.pluginId, form.value)
       if (result.valid) {
         setVerifySuccess({ uid: result.uid, screenName: result.screenName })
       } else {
@@ -89,11 +91,9 @@ export function CredentialsPanel(): JSX.Element {
       setVerifyError('请填写 Cookie')
       return
     }
-    const pluginId = editingId
-      ? credentials.find((c) => c.id === editingId)?.pluginId
-      : filterPluginId
-    if (!pluginId || pluginId === 'all') {
-      setVerifyError('请选择一个插件')
+    const pluginId = form.pluginId
+    if (!pluginId) {
+      setVerifyError('请选择所属插件')
       return
     }
     setSaving(true)
@@ -131,7 +131,7 @@ export function CredentialsPanel(): JSX.Element {
     ? credentials
     : credentials.filter((c) => c.pluginId === filterPluginId)
 
-  const canVerify = filterPluginId !== 'all' && !!form.value.trim()
+  const canVerify = !!form.pluginId && !!form.value.trim()
 
   return (
     <div className={styles.container}>
@@ -161,6 +161,28 @@ export function CredentialsPanel(): JSX.Element {
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
             />
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label}>所属插件</label>
+            {editingId ? (
+              <input
+                type="text"
+                className={styles.input}
+                value={pluginName(form.pluginId)}
+                disabled
+              />
+            ) : (
+              <select
+                className={styles.select}
+                value={form.pluginId}
+                onChange={(e) => setForm((f) => ({ ...f, pluginId: e.target.value }))}
+              >
+                <option value="">请选择插件</option>
+                {plugins.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div className={styles.field}>
             <label className={styles.label}>Cookie</label>
