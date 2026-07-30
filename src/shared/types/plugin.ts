@@ -25,6 +25,11 @@ export interface PluginMeta {
    * Defaults to the plugin id when not specified.
    */
   provider?: string
+  /**
+   * Human-readable name of the service provider (e.g. "微博", "X").
+   * Used as the label in credential UI. Defaults to `provider` when not set.
+   */
+  providerName?: string
 }
 
 /** A single configuration field rendered as a form input */

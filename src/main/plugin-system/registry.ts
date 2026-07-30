@@ -36,12 +36,17 @@ export function getAll(): FeedFlowPlugin[] {
 }
 
 export function getAllMeta(): PluginMeta[] {
-  return getAll().map((p) => ({
-    ...p.meta,
-    // Default provider to plugin id so credentials can always be scoped,
-    // even for plugins that don't declare an explicit provider.
-    provider: p.meta.provider ?? p.meta.id
-  }))
+  return getAll().map((p) => {
+    const provider = p.meta.provider ?? p.meta.id
+    return {
+      ...p.meta,
+      // Default provider to plugin id so credentials can always be scoped,
+      // even for plugins that don't declare an explicit provider.
+      provider,
+      // Default providerName to provider id for display.
+      providerName: p.meta.providerName ?? provider
+    }
+  })
 }
 
 export function has(id: string): boolean {

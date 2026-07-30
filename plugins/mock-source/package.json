@@ -11,6 +11,7 @@
     "author": "FeedFlow",
     "color": "#6C5CE7",
     "icon": "🧪",
-    "provider": "mock"
+    "provider": "mock",
+    "providerName": "Mock"
   }
 }

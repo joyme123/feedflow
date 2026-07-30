@@ -47,8 +47,8 @@ export function CredentialsPanel(): JSX.Element {
       const id = p.provider
       if (seen.has(id)) continue
       seen.add(id)
-      // Use the plugin name as the provider label for display.
-      list.push({ id, label: p.name })
+      // Use the provider's display name (not the plugin name).
+      list.push({ id, label: p.providerName ?? id })
     }
     return list
   }, [plugins])

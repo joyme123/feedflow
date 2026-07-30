@@ -11,6 +11,7 @@
     "author": "FeedFlow",
     "color": "#E6162D",
     "icon": "🔴",
-    "provider": "weibo"
+    "provider": "weibo",
+    "providerName": "微博"
   }
 }
