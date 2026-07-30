@@ -117,11 +117,10 @@ export function initializeDatabase(): void {
   try {
     const credCols = db.prepare("PRAGMA table_info(credentials)").all() as { name: string }[]
     const hasPluginId = credCols.some((c) => c.name === 'plugin_id')
-    if (!hasPluginId) {
-      // Already migrated (or fresh). Just ensure no leftover temp table.
-      db.exec(`DROP TABLE IF EXISTS credentials_new`)
-    } else {
-      db.exec(`DROP TABLE IF EXISTS credentials_new`)
+    // Clean up a leftover temp table from a failed prior run before deciding
+    // whether a rebuild is needed.
+    db.exec(`DROP TABLE IF EXISTS credentials_new`)
+    if (hasPluginId) {
       db.exec(`
         CREATE TABLE credentials_new (
           id          TEXT PRIMARY KEY,

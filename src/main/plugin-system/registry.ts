@@ -43,8 +43,10 @@ export function getAllMeta(): PluginMeta[] {
       // Default provider to plugin id so credentials can always be scoped,
       // even for plugins that don't declare an explicit provider.
       provider,
-      // Default providerName to provider id for display.
-      providerName: p.meta.providerName ?? provider
+      // Default providerName to the plugin's display name (human-readable)
+      // rather than the provider id, so third-party plugins without an
+      // explicit providerName still show a friendly label in credential UI.
+      providerName: p.meta.providerName ?? p.meta.name
     }
   })
 }

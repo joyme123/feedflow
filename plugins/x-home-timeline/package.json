@@ -10,8 +10,6 @@
     "description": "免费自动获取 X（Twitter）关注信息流（基于 x.com GraphQL API，无需 OAuth）",
     "author": "FeedFlow",
     "color": "#1DA1F2",
-    "icon": "🐦",
-    "provider": "x",
-    "providerName": "X"
+    "icon": "🐦"
   }
 }
