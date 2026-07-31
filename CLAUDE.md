@@ -23,7 +23,7 @@ FeedFlow is an **Electron desktop app** (multi-source feed aggregator). It uses 
 
 | Process | Entry | Runtime | Role |
 |---------|-------|---------|------|
-| Main | `src/main/index.ts` | Node.js | DB, plugin system, IPC handlers, window management |
+| Main | `src/main/index.ts` | Node.js | DB, plugin system, IPC handlers, MCP server, window management, cookie injection |
 | Preload | `src/preload/index.ts` | Node (bridge) | Exposes `window.api` via `contextBridge`, plus event listeners for push events |
 | Renderer | `src/renderer/src/main.tsx` → `App.tsx` | Chromium | React 18 UI, talks to main exclusively through the preload API |
 
@@ -33,29 +33,65 @@ Sources (信息源) are powered by **plugins**. Each plugin lives in a directory
 
 1. Have a `package.json` with a `feedflow` field containing metadata (`id`, `name`, `version`, `description`, `author`, `color`)
 2. Export a default object implementing the `FeedFlowPlugin` interface (`src/shared/types/plugin.ts`):
-   - `meta` — static metadata
-   - `configSchema` — form fields for configuring source instances
+   - `meta` — static metadata (includes `provider`/`providerName` for credential sharing, `feedType` for timeline vs group-chat)
+   - `configSchema` — form fields for configuring source instances (supports a `credential` field type that references stored credentials)
    - `fetchItems(config, cursor?)` → `FetchResult` — the core fetch logic
+   - `fetchItemDetail?(config, externalId)` → `ItemDetailResult` — optional, used to inline-expand truncated items (e.g. long weibo posts)
    - Optional `onRegister`/`onUnregister` lifecycle hooks
 
 **Plugin lifecycle:**
 - `src/main/plugin-system/loader.ts` scans `plugins/` and `{userData}/plugins/` at startup, imports each plugin module, and registers valid ones
 - `src/main/plugin-system/registry.ts` holds plugins in an in-memory `Map<string, FeedFlowPlugin>` and persists metadata to the `plugins` SQLite table
 - `src/main/plugin-system/runner.ts` calls `plugin.fetchItems()` for each enabled source during refresh, upserts results into the DB, and pushes progress events to the renderer
+- `src/main/plugin-system/credentials.ts` resolves `credential`-type config fields into their raw (decrypted) values before `fetchItems`/`fetchItemDetail` is called — plugins never see credential IDs
+
+### Credentials System
+
+Credentials (e.g. cookies) are stored encrypted in the `credentials` table and scoped to a **provider** (e.g. "weibo", "x") rather than a single plugin, so multiple plugins of the same provider can share one cookie.
+
+- `src/main/plugin-system/encryption.ts` wraps Electron's `safeStorage` (falls back to plaintext when unavailable)
+- `src/main/database/queries/credentials.ts` — CRUD
+- `src/main/plugin-system/credentials.ts` — resolves credential references in source config to raw values
+- At startup, `src/main/index.ts` loads the cookie for the weibo and X plugins and injects it into the Electron session so images/videos load with auth
+
+### Refresh Lock
+
+`src/main/plugin-system/refresh-lock.ts` maintains an in-memory `Set` of source IDs currently being refreshed. Both the UI refresh path (`runner.ts`) and the MCP `refresh_source` tool acquire this lock, so the same source is never refreshed concurrently. Sources that are already refreshing are skipped.
 
 ### Database
 
-SQLite via `better-sqlite3` with WAL mode. The DB file is stored at `{userData}/feedflow.db`. Schema (`src/main/database/schema.ts`) has 5 tables: `plugins`, `sources`, `items`, `fetch_log`, `settings`. Queries are organized in `src/main/database/queries/` — each file is a standalone module that calls `getDb()` and runs prepared statements.
+SQLite via `better-sqlite3` with WAL mode. The DB file is stored at `{userData}/feedflow.db`. Schema (`src/main/database/schema.ts`) has 6 tables: `plugins`, `sources`, `items`, `fetch_log`, `settings`, `credentials`. Queries are organized in `src/main/database/queries/` — each file is a standalone module that calls `getDb()` and runs prepared statements.
+
+`initializeDatabase()` runs idempotent `CREATE TABLE IF NOT EXISTS` statements plus migrations (e.g. adding `feed_type` to `sources`, `provider` to `plugins`, and rebuilding `credentials` to replace `plugin_id` with `provider`).
+
+### Settings
+
+Key-value store in the `settings` table. `src/main/database/queries/settings.ts` provides `getSetting`/`setSetting`/`getAllSettings`. Exposed over IPC (`settings:get`, `settings:set`, `settings:get-all`) and used by the MCP server to read `mcp.enabled` / `mcp.port`. The renderer Settings page (`SettingsPage.tsx`) has tabs for credentials, plugins, and MCP.
+
+### MCP Server
+
+`src/main/mcp-server/` exposes FeedFlow data to local AI agents over the **Model Context Protocol** via HTTP transport (StreamableHTTPServerTransport), listening on `http://127.0.0.1:33939/mcp` by default. Started in `index.ts` after plugins load; startup failure is non-fatal.
+
+Tools (defined in `src/main/mcp-server/tools/`):
+- `list_sources` — list configured sources with item counts and last-fetched time
+- `list_items` — paginated item listing (filter by source, time range; cursor-based pagination)
+- `search_items` — full-text search over item content
+- `get_item` — single item detail; auto-expands truncated items via `fetchItemDetail` (with a 10s timeout) and writes the full content back to the DB
+- `refresh_source` — triggers a refresh (uses the same refresh lock as the UI; per-source timeout)
+
+Configurable via settings (`mcp.enabled`, `mcp.port`) and the `McpPanel` in Settings. The panel shows the JSON config snippet to add to an MCP client.
 
 ### IPC Pattern
 
 All main↔renderer communication goes through typed `ipcMain.handle` / `ipcRenderer.invoke` channels defined in `src/shared/types/ipc.ts`. The preload script (`src/preload/index.ts`) wraps each channel in a method on `window.api`. The renderer never calls `ipcRenderer` directly — it always goes through `window.api`.
 
+Channel groups: `sources:*`, `plugins:*` (including `verify-cookie`, `list-groups`), `credentials:*`, `timeline:*` (list, refresh, load-older, get-item-detail), `settings:*`.
+
 Main→renderer push events (refresh progress) use `webContents.send` and are wrapped as subscribe/unsubscribe helpers in preload.
 
 ### Renderer State
 
-State management uses **zustand** with a single slice pattern. `src/renderer/src/store/sourceSlice.ts` defines the `SourceSlice` interface and creator, covering sources, plugins, timeline items, and refresh state. The store is created in `src/renderer/src/store/index.ts`.
+State management uses **zustand** with a single slice pattern. `src/renderer/src/store/sourceSlice.ts` defines the `SourceSlice` interface and creator, covering sources, plugins, timeline items, and refresh state. The store is created in `src/renderer/src/store/index.ts`. There is also a `credentialSlice.ts`.
 
 ### Key Path Aliases
 

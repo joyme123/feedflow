@@ -6,6 +6,7 @@ import { closeDb, getDb } from './database/connection'
 import { registerIpcHandlers } from './ipc/handlers'
 import { loadPlugins } from './plugin-system/loader'
 import { decrypt } from './plugin-system/encryption'
+import { startMcpServer } from './mcp-server'
 
 /** 微博相关域名，用于设置 Cookie 和 Referer */
 const WEIBO_DOMAINS = ['.upload.api.weibo.com', '.weibo.com', '.sinaimg.cn', '.sina.com.cn', '.api.weibo.com']
@@ -148,6 +149,9 @@ app.whenReady().then(async () => {
 
   // Register IPC handlers
   registerIpcHandlers()
+
+  // Start MCP server (失败不影响 app 运行)
+  startMcpServer()
 
   // 设置微博图片 Cookie 的 IPC handler
   ipcMain.handle('set-weibo-cookie', async (_event, cookie: string) => {

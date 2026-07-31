@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { CredentialsPanel } from '../credentials/CredentialsPanel'
 import { PluginList } from '../plugins/PluginList'
+import { McpPanel } from './McpPanel'
 import styles from './SettingsPage.module.css'
 
 interface SettingsPageProps {
@@ -8,7 +9,7 @@ interface SettingsPageProps {
   onClose: () => void
 }
 
-type TabId = 'credentials' | 'plugins'
+type TabId = 'credentials' | 'plugins' | 'mcp'
 
 interface Tab {
   id: TabId
@@ -35,6 +36,14 @@ const TABS: Tab[] = [
     title: '插件',
     description: '插件放在 plugins/ 目录下即可自动加载',
     content: <PluginList />
+  },
+  {
+    id: 'mcp',
+    label: 'MCP Server',
+    icon: '🤖',
+    title: 'MCP Server',
+    description: '为 AI agent 提供数据查询和刷新能力',
+    content: <McpPanel />
   }
 ]
 

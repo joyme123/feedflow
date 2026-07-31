@@ -2,6 +2,7 @@ import { ipcMain, BrowserWindow } from 'electron'
 import * as sourceQueries from '../database/queries/sources'
 import * as itemQueries from '../database/queries/items'
 import * as credentialQueries from '../database/queries/credentials'
+import * as settingQueries from '../database/queries/settings'
 import { getAllMeta, getAll, get as getPlugin, getModule } from '../plugin-system/registry'
 import { refreshSources } from '../plugin-system/runner'
 import { resolveCredentialFields } from '../plugin-system/credentials'
@@ -261,5 +262,18 @@ export function registerIpcHandlers(): void {
       console.error('[IPC] getItemDetail: plugin threw:', err instanceof Error ? err.message : String(err))
       throw err
     }
+  })
+
+  // ---- Settings ----
+  ipcMain.handle('settings:get', (_e, key: string) => {
+    return settingQueries.getSetting(key)
+  })
+
+  ipcMain.handle('settings:set', (_e, { key, value }: { key: string; value: string }) => {
+    settingQueries.setSetting(key, value)
+  })
+
+  ipcMain.handle('settings:get-all', () => {
+    return settingQueries.getAllSettings()
   })
 }

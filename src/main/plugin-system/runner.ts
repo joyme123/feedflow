@@ -4,6 +4,7 @@ import { resolveCredentialFields } from './credentials'
 import { getEnabledSources, updateSource } from '../database/queries/sources'
 import { upsertItem } from '../database/queries/items'
 import { insertLog } from '../database/queries/fetch_log'
+import { acquireRefreshLock, releaseRefreshLock } from './refresh-lock'
 import type { SourceConfig } from '@shared/types/plugin'
 
 export async function refreshSources(sourceIds?: string[]): Promise<number> {
@@ -12,10 +13,15 @@ export async function refreshSources(sourceIds?: string[]): Promise<number> {
     ? sources.filter((s) => sourceIds.includes(s.id))
     : sources
 
+  // 获取刷新锁，跳过正在刷新的源
+  const lockedIds = acquireRefreshLock(toRefresh.map((s) => s.id))
+  const sourcesToRefresh = toRefresh.filter((s) => lockedIds.includes(s.id))
+
   let totalFetched = 0
   const win = BrowserWindow.getAllWindows()[0]
 
-  for (const source of toRefresh) {
+  try {
+    for (const source of sourcesToRefresh) {
     const plugin = get(source.pluginId)
     if (!plugin) {
       console.warn(`[Runner] Plugin ${source.pluginId} not found for source ${source.id}`)
@@ -110,4 +116,7 @@ export async function refreshSources(sourceIds?: string[]): Promise<number> {
   win?.webContents.send('refresh:all-complete', { totalItems: totalFetched })
 
   return totalFetched
+  } finally {
+    releaseRefreshLock(lockedIds)
+  }
 }

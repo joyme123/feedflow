@@ -27,6 +27,11 @@ const api = {
   // Weibo
   setWeiboCookie: (cookie: string) => ipcRenderer.invoke('set-weibo-cookie', cookie),
 
+  // Settings
+  getSetting: (key: string) => ipcRenderer.invoke('settings:get', key),
+  setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', { key, value }),
+  getAllSettings: () => ipcRenderer.invoke('settings:get-all'),
+
   // Timeline
   listItems: (params: unknown) => ipcRenderer.invoke('timeline:list', params),
   refresh: (sourceIds?: string[]) => ipcRenderer.invoke('timeline:refresh', { sourceIds }),
