@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "FeedFlow — 多源信息流聚合桌面应用",
   "main": "./out/main/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joyme123/feedflow.git"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
@@ -15,6 +19,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "better-sqlite3": "^11.7.0",
+    "electron-updater": "^6.8.9",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

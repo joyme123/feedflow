@@ -1,0 +1,171 @@
+name: Release
+
+# 触发条件：
+#   1. 推送符合 semver 的 tag（如 v0.1.0）
+#   2. 手动触发（workflow_dispatch），便于补跑 / 调试
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'   # 预发布 tag，如 v0.2.0-beta.1
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的 tag（留空则使用当前触发的 ref）'
+        required: false
+
+# 创建 Release 需要写仓库内容的权限
+permissions:
+  contents: write
+
+# 同一 tag 不并发发版
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # 供 electron-builder 自动上传产物到 Release（本工作流未启用 publish，
+  # 但保留以便后续开启 auto-publish 时直接生效）
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  # ----------------------------------------------------------------------
+  # 校验：tag 必须与 package.json 中的 version 一致，避免错版
+  # ----------------------------------------------------------------------
+  version-check:
+    name: Verify tag matches package.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract versions
+        id: ver
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          PKG_VER="v$(node -p "require('./package.json').version")"
+          echo "tag=$TAG"
+          echo "pkg=$PKG_VER"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "pkg=$PKG_VER" >> "$GITHUB_OUTPUT"
+
+      - name: Fail on mismatch
+        if: steps.ver.outputs.tag != steps.ver.outputs.pkg
+        run: |
+          echo "::error::Tag (${{ steps.ver.outputs.tag }}) 与 package.json version (${{ steps.ver.outputs.pkg }}) 不一致"
+          echo "请先更新 package.json 的 version，再打 tag 推送。"
+          exit 1
+
+  # ----------------------------------------------------------------------
+  # 构建：每个平台在原生 runner 上构建，确保 better-sqlite3 等原生模块正确
+  # ----------------------------------------------------------------------
+  build:
+    name: Build ${{ matrix.platform }} (${{ matrix.arch }})
+    needs: version-check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS：同时出 arm64（Apple Silicon）与 x64（Intel）
+          - os: macos-latest
+            platform: mac
+            arch: arm64
+          - os: macos-latest
+            platform: mac
+            arch: x64
+          # Windows
+          - os: windows-latest
+            platform: win
+            arch: x64
+          # Linux
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # Linux 构建 AppImage / deb 所需的系统依赖
+      - name: Install Linux build deps
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libarchive-tools \
+            libfuse2
+
+      - name: Install dependencies
+        run: npm ci
+        env:
+          # 让 better-sqlite3 等原生模块按目标 arch 拉取/编译预构建产物
+          npm_config_arch: ${{ matrix.arch }}
+
+      - name: Build & package
+        # --publish never：只生成 latest*.yml 自动更新元数据，不上传（由 release job 统一发布）
+        run: npm run package:${{ matrix.platform }} -- --${{ matrix.arch }} --publish never
+        env:
+          npm_config_arch: ${{ matrix.arch }}
+          # CI 中没有签名证书，关闭 macOS 代码签名与公证
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          MACOS_SKIP_NOTARIZATION: true
+          # 关闭 Windows 代码签名（未配置证书）
+          WIN_CSC_LINK: ''
+
+      - name: Show dist contents
+        run: ls -la dist/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: feedflow-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+            dist/latest*.yml
+          if-no-files-found: error
+          retention-days: 30
+
+  # ----------------------------------------------------------------------
+  # 发布：汇总所有产物，创建 GitHub Release
+  # ----------------------------------------------------------------------
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: FeedFlow ${{ github.ref_name }}
+          generate_release_notes: true
+          # 预发布 tag（带 -alpha/-beta/-rc 等）标记为 prerelease
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            artifacts/*.dmg
+            artifacts/*.zip
+            artifacts/*.exe
+            artifacts/*.AppImage
+            artifacts/*.deb
+            artifacts/*.rpm
+            artifacts/latest*.yml

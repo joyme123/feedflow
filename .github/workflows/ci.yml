@@ -1,0 +1,50 @@
+name: CI
+
+# 在 PR 和 main 分支推送时运行，验证编译通过
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# 同一 PR 多次推送时取消旧的运行，节省资源
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 类型检查：electron-vite 用 esbuild 转译不做类型检查，单独跑 tsc
+      - name: Type check
+        run: npx tsc -b
+
+      - name: Build (main / preload / renderer)
+        run: npm run build
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: out/
+          if-no-files-found: error
+          retention-days: 7

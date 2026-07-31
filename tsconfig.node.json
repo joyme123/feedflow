@@ -23,6 +23,7 @@
     "src/preload/**/*.ts",
     "src/shared/**/*.ts",
     "plugins/**/*.ts",
-    "electron.vite.config.ts"
+    "electron.vite.config.ts",
+    "package.json"
   ]
 }

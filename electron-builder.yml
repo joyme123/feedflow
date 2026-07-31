@@ -6,6 +6,13 @@ directories:
 files:
   - out/**/*
   - plugins/**/*
+# 自动更新元数据：构建时生成 latest-mac.yml / latest.yml / latest-linux.yml，
+# 供应用内 electron-updater 检测新版本。CI 中使用 --publish never 只生成不上传，
+# 由 release job 统一上传到 GitHub Release。
+publish:
+  provider: github
+  owner: joyme123
+  repo: feedflow
 mac:
   category: public.app-category.news
   target:
