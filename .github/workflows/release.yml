@@ -115,8 +115,6 @@ jobs:
           # CI 中没有签名证书，关闭 macOS 代码签名与公证
           CSC_IDENTITY_AUTO_DISCOVERY: false
           MACOS_SKIP_NOTARIZATION: true
-          # 关闭 Windows 代码签名（未配置证书）
-          WIN_CSC_LINK: ''
 
       - name: Show dist contents
         run: ls -la dist/

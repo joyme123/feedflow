@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "description": "FeedFlow — 多源信息流聚合桌面应用",
   "main": "./out/main/index.js",
+  "author": {
+    "name": "joyme123",
+    "email": "joyme123@users.noreply.github.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/joyme123/feedflow.git"
