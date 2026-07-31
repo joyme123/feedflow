@@ -127,6 +127,19 @@ export function countItemsBySource(sourceId: string): number {
   return row.count
 }
 
+export function getItemById(id: string): Item | undefined {
+  const db = getDb()
+  return db.prepare(`
+    SELECT id, source_id as sourceId, plugin_id as pluginId, external_id as externalId,
+           author_name as authorName, author_avatar as authorAvatar,
+           content_text as contentText, content_html as contentHtml,
+           media_urls as mediaUrls, permalink, published_at as publishedAt,
+           fetched_at as fetchedAt, cursor_value as cursorValue, metadata
+    FROM items
+    WHERE id = ?
+  `).get(id) as Item | undefined
+}
+
 export function getItemsByExternalIds(sourceId: string, externalIds: string[]): Item[] {
   if (externalIds.length === 0) return []
 

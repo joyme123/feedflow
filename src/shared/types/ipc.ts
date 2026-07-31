@@ -1,6 +1,6 @@
 import type { Source, AddSourceInput } from './source'
 import type { Item, DisplayItem, TimelineListParams, RefreshProgress } from './item'
-import type { PluginMeta, ConfigField } from './plugin'
+import type { PluginMeta, ConfigField, ItemDetailResult } from './plugin'
 import type { Credential, AddCredentialInput, UpdateCredentialInput } from './credential'
 
 /** Typed IPC channel map */
@@ -32,6 +32,10 @@ export interface IpcChannelMap {
       nextMaxId: string
       hasMore: boolean
     }
+  }
+  'timeline:get-item-detail': {
+    in: { itemId: string }
+    out: ItemDetailResult
   }
 }
 

@@ -31,6 +31,10 @@ function formatFullTime(isoString: string): string {
 export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
+  // 长文（被插件截断）内联展开：点击"查看更多"后通过 IPC 拉取完整正文
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+  const [fullContent, setFullContent] = useState<{ text: string; html?: string } | null>(null)
 
   // 判断是否为群聊模式（群聊类型的消息用气泡式展示）
   const isChat = item.feedType === 'group-chat'
@@ -43,6 +47,37 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
     metadata = {}
   }
   const isTruncated = !!metadata.isTruncated
+  console.log('[TimelineItem] render', item.id, '| isTruncated=', isTruncated, '| contentTextLen=', (item.contentText || '').length, '| hasPermalink=', !!item.permalink)
+
+  // 点击"查看更多"：通过 IPC 拉取单条微博完整正文并内联展开
+  const handleViewMore = async () => {
+    console.log('[TimelineItem] handleViewMore CLICKED for item', item.id, '| detailLoading=', detailLoading, '| fullContent=', !!fullContent)
+    if (detailLoading || fullContent) {
+      console.log('[TimelineItem] handleViewMore ABORT (already loading or has content)')
+      return
+    }
+    setDetailLoading(true)
+    setDetailError(null)
+    try {
+      console.log('[TimelineItem] calling window.api.getItemDetail...')
+      const result = await window.api.getItemDetail(item.id)
+      console.log('[TimelineItem] getItemDetail RESULT:', JSON.stringify(result).slice(0, 800))
+      if (result?.content) {
+        console.log('[TimelineItem] setting fullContent, textLen=', result.content.text?.length)
+        setFullContent(result.content)
+        setExpanded(true)
+      } else {
+        throw new Error('返回内容为空')
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[TimelineItem] 获取完整内容失败:', msg, err)
+      setDetailError(msg)
+    } finally {
+      setDetailLoading(false)
+      console.log('[TimelineItem] handleViewMore DONE, detailError=', detailError)
+    }
+  }
 
   let mediaUrls: string[] = []
   try {
@@ -53,8 +88,10 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
 
   // 判断内容是否需要展开/收起（超过阈值字符数视为长内容）
   const EXPAND_THRESHOLD = 300
-  const contentPlain = item.contentText || ''
-  const needsExpand = contentPlain.length > EXPAND_THRESHOLD
+  // 已拉取完整正文时，用完整内容参与长度判断与渲染
+  const activeContentText = fullContent ? fullContent.text : (item.contentText || '')
+  const activeContentHtml = fullContent ? fullContent.html : item.contentHtml
+  const needsExpand = activeContentText.length > EXPAND_THRESHOLD
   const contentCollapsed = needsExpand && !expanded
 
   // 检测视频 URL（微博视频通常是 .mp4 或 .mov 格式）
@@ -145,19 +182,19 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
       </div>
 
       <div className={styles.body}>
-        {item.contentHtml ? (
+        {activeContentHtml ? (
           <div
             className={`${styles.content} ${contentCollapsed ? styles.contentCollapsed : ''}`}
-            dangerouslySetInnerHTML={{ __html: item.contentHtml }}
+            dangerouslySetInnerHTML={{ __html: activeContentHtml }}
           />
         ) : (
           <p className={`${styles.content} ${contentCollapsed ? styles.contentCollapsed : ''}`}>
-            {item.contentText}
+            {activeContentText}
           </p>
         )}
 
-        {/* 展开/收起按钮 */}
-        {needsExpand && (
+        {/* 展开/收起按钮（内容超长时显示；截断内容需先点"查看更多"拉取完整正文） */}
+        {needsExpand && (!isTruncated || fullContent) && (
           <button
             className={styles.expandButton}
             onClick={() => setExpanded((prev) => !prev)}
@@ -166,16 +203,32 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
           </button>
         )}
 
-        {/* 文本被截断时显示"查看更多"链接（在浏览器中打开原帖查看完整内容） */}
-        {isTruncated && item.permalink && (
-          <a
+        {/* 文本被截断时显示"查看更多"：内联拉取完整正文，不再跳转浏览器 */}
+        {isTruncated && !fullContent && (
+          <button
             className={styles.viewMoreLink}
-            href={item.permalink}
-            target="_blank"
-            rel="noopener noreferrer"
+            onClick={handleViewMore}
+            disabled={detailLoading}
           >
-            查看更多 →
-          </a>
+            {detailLoading ? '加载中…' : '查看更多 →'}
+          </button>
+        )}
+
+        {/* 拉取完整正文失败时，显示错误原因，并回退为在浏览器中打开原帖 */}
+        {isTruncated && detailError && (
+          <div className={styles.detailError}>
+            <span className={styles.detailErrorText}>{detailError}</span>
+            {item.permalink && (
+              <a
+                className={styles.viewMoreLink}
+                href={item.permalink}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                在浏览器中查看 →
+              </a>
+            )}
+          </div>
         )}
 
         {/* 视频播放 */}

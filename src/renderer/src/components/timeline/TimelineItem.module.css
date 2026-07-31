@@ -104,6 +104,19 @@
   text-decoration: underline;
 }
 
+.detailError {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.detailErrorText {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
 .mediaGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;

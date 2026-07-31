@@ -32,19 +32,19 @@ function sanitizeCookie(cookie) {
 }
 
 /** 发起 HTTPS GET 请求（带 Cookie） */
-function httpsGet(path, cookie) {
+function httpsGet(path, cookie, host = WEIBO_HOST) {
   const cleanCookie = sanitizeCookie(cookie)
   return new Promise((resolve, reject) => {
     const req = https.get(
       {
-        hostname: WEIBO_HOST,
+        hostname: host,
         path,
         headers: {
           'Cookie': cleanCookie,
           'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'application/json, text/plain, */*',
           'X-Requested-With': 'XMLHttpRequest',
-          'Referer': 'https://weibo.com/'
+          'Referer': `https://${host}/`
         },
         timeout: 15000
       },
@@ -220,6 +220,20 @@ function fetchStatusById(cookie, id) {
   return httpsGet(`/ajax/statuses/show?${query.toString()}`, cookie)
 }
 
+/**
+ * 获取长微博的完整正文
+ * GET https://m.weibo.cn/statuses/extend?id={mid}
+ *
+ * weibo.com 的 /ajax/statuses/show 对长文只返回截断的 text，
+ * 完整正文在 m.weibo.cn 的 /statuses/extend 接口的 longTextContent 字段。
+ *
+ * @returns {Promise<{ok:number, data:{longTextContent:string}}>}
+ */
+function fetchLongTextById(cookie, id) {
+  const query = new URLSearchParams({ id })
+  return httpsGet(`/statuses/extend?${query.toString()}`, cookie, 'm.weibo.cn')
+}
+
 // ============================================================
 // 响应解析辅助
 // ============================================================
@@ -272,6 +286,7 @@ module.exports = {
   extractCurrentUid,
   fetchProfileInfo,
   fetchStatusById,
+  fetchLongTextById,
   extractStatuses,
   extractUsers,
   extractFollowingUsers

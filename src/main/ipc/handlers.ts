@@ -221,4 +221,45 @@ export function registerIpcHandlers(): void {
       return { items: [], totalFetched: 0, nextMaxId: maxId, hasMore: false }
     }
   })
+
+  // ---- Fetch full content of a single truncated item (inline expand) ----
+  ipcMain.handle('timeline:get-item-detail', async (_e, { itemId }: { itemId: string }) => {
+    console.log('[IPC] timeline:get-item-detail CALLED, itemId=', itemId)
+    const item = itemQueries.getItemById(itemId)
+    if (!item) {
+      console.log('[IPC] getItemDetail: item not found')
+      throw new Error('Item not found')
+    }
+    console.log('[IPC] getItemDetail: found item, externalId=', item.externalId, '| sourceId=', item.sourceId, '| pluginId=', item.pluginId)
+
+    const source = sourceQueries.getSourceById(item.sourceId)
+    if (!source) {
+      console.log('[IPC] getItemDetail: source not found')
+      throw new Error('Source not found')
+    }
+
+    const plugin = getPlugin(source.pluginId)
+    if (!plugin || typeof plugin.fetchItemDetail !== 'function') {
+      console.log('[IPC] getItemDetail: plugin missing fetchItemDetail, pluginId=', source.pluginId)
+      throw new Error('Plugin does not support fetching item detail')
+    }
+
+    let config: SourceConfig = {}
+    try {
+      config = JSON.parse(source.config as unknown as string) as SourceConfig
+    } catch {
+      config = {}
+    }
+    config = resolveCredentialFields(config, source.pluginId)
+    console.log('[IPC] getItemDetail: calling plugin.fetchItemDetail, config keys=', Object.keys(config))
+
+    try {
+      const result = await plugin.fetchItemDetail(config, item.externalId)
+      console.log('[IPC] getItemDetail: plugin returned, content.text length=', result?.content?.text?.length)
+      return result
+    } catch (err) {
+      console.error('[IPC] getItemDetail: plugin threw:', err instanceof Error ? err.message : String(err))
+      throw err
+    }
+  })
 }

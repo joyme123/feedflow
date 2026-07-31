@@ -32,6 +32,8 @@ const api = {
   refresh: (sourceIds?: string[]) => ipcRenderer.invoke('timeline:refresh', { sourceIds }),
   loadOlderItems: (sourceId: string, maxId: string) =>
     ipcRenderer.invoke('timeline:load-older', { sourceId, maxId }),
+  getItemDetail: (itemId: string) =>
+    ipcRenderer.invoke('timeline:get-item-detail', { itemId }),
 
   // Events (main -> renderer)
   onRefreshProgress: (cb: (data: unknown) => void) => {

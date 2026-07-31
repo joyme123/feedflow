@@ -21,6 +21,8 @@ const {
   fetchAllGroups,
   extractAllFollowListId,
   fetchUserBlogs,
+  fetchStatusById,
+  fetchLongTextById,
   extractStatuses
 } = require('./weibo-api')
 const { verifyCookie } = require('./auth')
@@ -314,6 +316,81 @@ async function fetchItems(config, cursor) {
 }
 
 // ============================================================
+// fetchItemDetail — 拉取单条微博完整正文（用于内联展开长文）
+// ============================================================
+
+/**
+ * 获取单条微博的完整内容。
+ *
+ * 关注时间线接口返回的长文会被截断（text 字段末尾带"展开"链接），
+ * 此函数通过 /ajax/statuses/show 拉取单条详情，拿到 long_text 完整正文，
+ * 供 UI 层内联展开，无需跳转浏览器。
+ *
+ * @param {SourceConfig} config - 用户配置（含 cookie）
+ * @param {string} externalId - 微博 id (idstr / mid)
+ * @returns {Promise<ItemDetailResult>}
+ */
+async function fetchItemDetail(config, externalId) {
+  console.log('[weibo] fetchItemDetail CALLED, externalId=', externalId, '| hasCookie=', !!config.cookie, '| cookieLen=', config.cookie?.length)
+  const cookie = config.cookie
+  if (!cookie) {
+    throw new Error('微博 Cookie 未配置。请在源设置中填入 weibo.com 的 Cookie。')
+  }
+  if (!externalId) {
+    throw new Error('缺少微博 ID，无法获取完整内容。')
+  }
+
+  console.log('[weibo] fetchItemDetail calling fetchStatusById...')
+  const response = await fetchStatusById(cookie, externalId)
+  const status = response?.data || response
+  if (!status || (!status.text && !status.long_text)) {
+    throw new Error('获取微博完整内容失败，请稍后重试。')
+  }
+
+  // 长微博：weibo.com 的 /ajax/statuses/show 只返回截断 text，
+  // 需调用 m.weibo.cn/statuses/extend 获取 longTextContent 完整正文
+  let displayText
+  if (status.isLongText) {
+    console.log('[weibo] fetchItemDetail isLongText=true, calling fetchLongTextById...')
+    try {
+      const ltRes = await fetchLongTextById(cookie, externalId)
+      const longText = ltRes?.data?.longTextContent
+      if (longText) {
+        console.log('[weibo] fetchItemDetail got longTextContent, length=', longText.length)
+        displayText = longText
+      } else {
+        console.log('[weibo] fetchItemDetail longTextContent empty, fallback to text')
+        displayText = getFullText(status).text
+      }
+    } catch (err) {
+      console.log('[weibo] fetchItemDetail fetchLongTextById failed, fallback:', err.message)
+      displayText = getFullText(status).text
+    }
+  } else {
+    displayText = getFullText(status).text
+  }
+
+  // 处理转发微博
+  if (status.retweeted_status) {
+    const rtUser = status.retweeted_status.user
+    const rtName = rtUser ? `@${rtUser.screen_name}` : ''
+    const rtResult = getFullText(status.retweeted_status)
+    displayText += `\n\n//${rtName}: ${rtResult.text}`
+  }
+
+  const result = {
+    content: {
+      text: stripHtml(displayText) || '',
+      html: displayText
+    },
+    // 已拿到完整正文，不再标记为截断
+    metadata: { isTruncated: false }
+  }
+  console.log('[weibo] fetchItemDetail RETURNING content.text length=', result.content.text.length)
+  return result
+}
+
+// ============================================================
 // 生命周期
 // ============================================================
 
@@ -329,6 +406,7 @@ const weiboPlugin = {
   meta,
   configSchema,
   fetchItems,
+  fetchItemDetail,
   onRegister
 }
 

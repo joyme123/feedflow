@@ -87,11 +87,28 @@ export interface PluginContext {
   appDataPath: string
 }
 
+/** Returned by plugin.fetchItemDetail() — the full content of a single item */
+export interface ItemDetailResult {
+  content: {
+    text: string
+    html?: string
+  }
+  /** Optional updated metadata (e.g. isTruncated cleared once full text is fetched) */
+  metadata?: Record<string, unknown>
+}
+
 /** The core plugin interface. Each plugin exports this as its default. */
 export interface FeedFlowPlugin {
   meta: PluginMeta
   configSchema: ConfigField[]
   fetchItems(config: SourceConfig, cursor?: string): Promise<FetchResult>
+  /**
+   * Fetch the full content of a single item by its external id.
+   * Used to expand truncated items (e.g. long weibo posts) inline
+   * without navigating away to the original site.
+   * Optional — plugins that don't support it simply won't show "查看更多".
+   */
+  fetchItemDetail?(config: SourceConfig, externalId: string): Promise<ItemDetailResult>
   onRegister?(ctx: PluginContext): Promise<void>
   onUnregister?(): Promise<void>
 }
