@@ -40,6 +40,10 @@ const api = {
   getItemDetail: (itemId: string) =>
     ipcRenderer.invoke('timeline:get-item-detail', { itemId }),
 
+  // Auto-updates
+  checkForUpdates: () => ipcRenderer.invoke('updates:check'),
+  quitAndInstall: () => ipcRenderer.invoke('updates:quit-and-install'),
+
   // Events (main -> renderer)
   onRefreshProgress: (cb: (data: unknown) => void) => {
     const handler = (_e: Electron.IpcRendererEvent, d: unknown) => cb(d)
@@ -55,6 +59,38 @@ const api = {
     const handler = (_e: Electron.IpcRendererEvent, d: unknown) => cb(d)
     ipcRenderer.on('refresh:all-complete', handler)
     return () => ipcRenderer.removeListener('refresh:all-complete', handler)
+  },
+
+  // Auto-update events (main -> renderer)
+  onUpdateChecking: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('update:checking', handler)
+    return () => ipcRenderer.removeListener('update:checking', handler)
+  },
+  onUpdateAvailable: (cb: (data: unknown) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, d: unknown) => cb(d)
+    ipcRenderer.on('update:available', handler)
+    return () => ipcRenderer.removeListener('update:available', handler)
+  },
+  onUpdateNotAvailable: (cb: () => void) => {
+    const handler = () => cb()
+    ipcRenderer.on('update:not-available', handler)
+    return () => ipcRenderer.removeListener('update:not-available', handler)
+  },
+  onUpdateDownloadProgress: (cb: (data: unknown) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, d: unknown) => cb(d)
+    ipcRenderer.on('update:download-progress', handler)
+    return () => ipcRenderer.removeListener('update:download-progress', handler)
+  },
+  onUpdateDownloaded: (cb: (data: unknown) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, d: unknown) => cb(d)
+    ipcRenderer.on('update:downloaded', handler)
+    return () => ipcRenderer.removeListener('update:downloaded', handler)
+  },
+  onUpdateError: (cb: (data: unknown) => void) => {
+    const handler = (_e: Electron.IpcRendererEvent, d: unknown) => cb(d)
+    ipcRenderer.on('update:error', handler)
+    return () => ipcRenderer.removeListener('update:error', handler)
   }
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { CredentialsPanel } from '../credentials/CredentialsPanel'
 import { PluginList } from '../plugins/PluginList'
 import { McpPanel } from './McpPanel'
+import { AboutPanel } from './AboutPanel'
 import styles from './SettingsPage.module.css'
 
 interface SettingsPageProps {
@@ -9,7 +10,7 @@ interface SettingsPageProps {
   onClose: () => void
 }
 
-type TabId = 'credentials' | 'plugins' | 'mcp'
+type TabId = 'credentials' | 'plugins' | 'mcp' | 'about'
 
 interface Tab {
   id: TabId
@@ -44,6 +45,14 @@ const TABS: Tab[] = [
     title: 'MCP Server',
     description: '为 AI agent 提供数据查询和刷新能力',
     content: <McpPanel />
+  },
+  {
+    id: 'about',
+    label: '关于',
+    icon: 'ℹ️',
+    title: '关于 FeedFlow',
+    description: '版本信息与自动更新',
+    content: <AboutPanel />
   }
 ]
 

@@ -7,6 +7,7 @@ import { registerIpcHandlers } from './ipc/handlers'
 import { loadPlugins } from './plugin-system/loader'
 import { decrypt } from './plugin-system/encryption'
 import { startMcpServer } from './mcp-server'
+import { initAutoUpdater } from './auto-updater'
 
 /** 微博相关域名，用于设置 Cookie 和 Referer */
 const WEIBO_DOMAINS = ['.upload.api.weibo.com', '.weibo.com', '.sinaimg.cn', '.sina.com.cn', '.api.weibo.com']
@@ -165,6 +166,9 @@ app.whenReady().then(async () => {
   })
 
   createWindow()
+
+  // 初始化自动更新（仅生产环境生效）
+  initAutoUpdater()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

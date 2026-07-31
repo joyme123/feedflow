@@ -37,6 +37,33 @@ export interface IpcChannelMap {
     in: { itemId: string }
     out: ItemDetailResult
   }
+
+  // Auto-updates
+  'updates:check': { in: void; out: void }
+  'updates:quit-and-install': { in: void; out: void }
+}
+
+/** 自动更新状态 */
+export type UpdateStatus =
+  | 'idle'
+  | 'checking'
+  | 'available'
+  | 'downloading'
+  | 'downloaded'
+  | 'error'
+
+/** 自动更新信息 */
+export interface UpdateInfo {
+  version: string
+  releaseNotes?: string | null
+}
+
+/** 下载进度 */
+export interface DownloadProgress {
+  percent: number
+  bytesPerSecond: number
+  total: number
+  transferred: number
 }
 
 /** Events pushed from main to renderer */
@@ -44,4 +71,12 @@ export interface MainToRendererEvents {
   'refresh:progress': RefreshProgress
   'refresh:complete': { sourceId: string; itemsFetched: number }
   'refresh:all-complete': { totalItems: number }
+
+  // Auto-updates
+  'update:checking': void
+  'update:available': UpdateInfo
+  'update:not-available': void
+  'update:download-progress': DownloadProgress
+  'update:downloaded': UpdateInfo
+  'update:error': { message: string }
 }
