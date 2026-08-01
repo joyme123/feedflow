@@ -27,10 +27,10 @@ mac:
   entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.inherit.plist
   # ---- 公证（Notarization）----
-  # 使用 App Store Connect API Key 进行公证（推荐，比 Apple ID + 专用密码更稳定）。
-  # 凭据通过环境变量注入：APPLE_API_KEY / APPLE_API_ISSUER / APPLE_API_KEY_PATH
-  notarize:
-    teamId: ${APPLE_TEAM_ID}
+  # 设为 true：electron-builder 自动从环境变量读取 App Store Connect API Key 凭据
+  # （APPLE_API_KEY / APPLE_API_KEY_ID / APPLE_API_ISSUER / APPLE_API_KEY_PATH），
+  # 且不会传入 teamId——teamId 会被 @electron/notarize 识别为 password 凭据，与 API Key 冲突。
+  notarize: true
 win:
   target:
     - nsis
