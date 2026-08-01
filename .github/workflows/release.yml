@@ -18,11 +18,6 @@ on:
 permissions:
   contents: write
 
-# 同一 tag 不并发发版
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
-
 env:
   # 供 electron-builder 自动上传产物到 Release（本工作流未启用 publish，
   # 但保留以便后续开启 auto-publish 时直接生效）
