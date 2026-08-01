@@ -19,9 +19,8 @@ mac:
     - dmg
     - zip
   # ---- 代码签名 ----
-  # Developer ID Application 证书名称，CI 中通过 CSC_LINK / CSC_KEY_PASSWORD 注入证书，
-  # 本地构建时若钥匙串中有匹配证书也会自动使用。
-  identity: null
+  # Developer ID Application 证书通过 CSC_LINK 环境变量注入（CI 中由 release.yml 准备），
+  # 本地构建时若钥匙串中有匹配证书也会自动使用。不设置 identity 字段即可自动发现证书。
   # 公证的前提：启用 Hardened Runtime
   hardenedRuntime: true
   # 权限声明：Electron/V8/better-sqlite3 所需的最低权限
