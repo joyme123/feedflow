@@ -1,0 +1,17 @@
+{
+  "name": "feedflow-plugin-v2ex",
+  "version": "1.0.0",
+  "description": "获取 V2EX 最新主题和热门主题（基于 V2EX 公开 API，无需认证）",
+  "main": "plugin.js",
+  "feedflow": {
+    "id": "feedflow-plugin-v2ex",
+    "name": "V2EX",
+    "version": "1.0.0",
+    "description": "获取 V2EX 最新主题和热门主题（基于 V2EX 公开 API，无需认证）",
+    "author": "FeedFlow",
+    "color": "#333333",
+    "icon": "💬",
+    "provider": "v2ex",
+    "providerName": "V2EX"
+  }
+}
