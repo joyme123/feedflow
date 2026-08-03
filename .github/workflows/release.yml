@@ -162,6 +162,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      # 需要检出代码以读取 CHANGELOG.md 并调用 scripts/extract-changelog-section.sh
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -171,12 +175,26 @@ jobs:
       - name: List artifacts
         run: ls -la artifacts/
 
+      # 从 CHANGELOG.md 中提取本次版本对应的小节，作为 Release 正文。
+      # 若该版本小节不存在，脚本会以非零状态退出，从而阻断发布——
+      # 这强制要求发版前先在 CHANGELOG.md 中补充该版本的变更记录。
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          TAG="${{ inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          ./scripts/extract-changelog-section.sh "$VERSION" CHANGELOG.md > release_body.md
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "--- release body preview ---"
+          cat release_body.md
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || github.ref_name }}
           name: FeedFlow ${{ inputs.tag || github.ref_name }}
-          generate_release_notes: true
+          # Release 正文来自 CHANGELOG.md 中对应版本的小节
+          body_path: release_body.md
           # 预发布 tag（带 -alpha/-beta/-rc 等）标记为 prerelease
           prerelease: ${{ contains(inputs.tag || github.ref_name, '-') }}
           files: |
