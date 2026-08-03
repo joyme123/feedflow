@@ -158,3 +158,42 @@ function compareIds(a, b) {
   return left.localeCompare(right)
 }
 ```
+
+## Ensure all links open in browser (MANDATORY)
+
+All `<a>` tags in `content.html` MUST have `target="_blank"` and
+`rel="noopener noreferrer"` so they open in the system browser, not inside
+the app. Use this helper to post-process any HTML before returning it:
+
+```js
+function processHtmlLinks(html) {
+  if (!html || typeof html !== 'string') return ''
+  return html
+    // 为所有 <a> 标签添加 target="_blank" 和 rel="noopener noreferrer"
+    .replace(/<a\b/gi, '<a target="_blank" rel="noopener noreferrer"')
+    // 补全协议相对 URL (//example.com/... → https://example.com/...)
+    .replace(/(href|src)="\/\//g, '$1="https://')
+}
+```
+
+Usage in `mapToItem`:
+
+```js
+function mapToItem(raw) {
+  return {
+    // ...
+    content: {
+      text: stripHtml(raw.content_html),
+      html: processHtmlLinks(raw.content_html)
+    }
+    // ...
+  }
+}
+```
+
+> **Why mandatory?** The main process has `will-navigate` and
+> `setWindowOpenHandler` guards that redirect all navigation to the system
+> browser. Setting `target="_blank"` explicitly ensures the link is caught
+> by `setWindowOpenHandler` (cleaner path) rather than relying on the
+> `will-navigate` safety net. It also prevents the link from briefly
+> navigating the app window before being intercepted.

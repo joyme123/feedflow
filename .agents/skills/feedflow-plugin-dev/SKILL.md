@@ -105,6 +105,13 @@ interface FetchResult {
 - **Extra exports**: you can export helpers like `verifyCookie` or
   `listGroups` alongside `default` — the registry stores the raw module so the
   UI can call them (e.g. to dynamically populate a `select` field's options).
+- **Links open in browser (MANDATORY)**: all links in `content.html` and the
+  `permalink` field MUST open in the user's system browser, never inside the
+  app. The main process already enforces this globally via
+  `setWindowOpenHandler` + `will-navigate`, but plugins MUST still set
+  `target="_blank"` and `rel="noopener noreferrer"` on every `<a>` tag in
+  `content.html`. See `references/cookbook.md` for the `processHtmlLinks`
+  helper.
 
 ## Common mistakes to avoid
 
@@ -122,6 +129,12 @@ interface FetchResult {
 - **`content.text` empty** — required. Strip HTML if you only have `html`.
 - **Hardcoding secrets** — never put cookies/tokens in the plugin. Use the
   `credential` field type.
+- **Links without `target="_blank"`** — every `<a>` in `content.html` MUST
+  have `target="_blank"` and `rel="noopener noreferrer"`. Without it, the link
+  may navigate inside the app window instead of opening in the browser. The
+  main process has a `will-navigate` guard as a safety net, but plugins must
+  still set the attribute explicitly. Use the `processHtmlLinks` helper in
+  `references/cookbook.md`.
 
 ## Files in this skill
 

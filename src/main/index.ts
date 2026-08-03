@@ -95,9 +95,25 @@ function createWindow(): void {
     mainWindow.show()
   })
 
+  // 统一链接行为：所有外部链接都在系统浏览器中打开，禁止在应用内导航
+  // 1) window.open() / target="_blank" → setWindowOpenHandler 拦截
+  // 2) 普通 <a> 链接（target="_self" 或无 target）→ will-navigate 拦截
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
+  })
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    // 允许应用自身的页面导航（如开发模式热更新），阻止所有外部链接在应用内打开
+    const isInternal =
+      url.startsWith('http://localhost:') ||
+      url.startsWith('devtools://') ||
+      url.startsWith('about:') ||
+      url.startsWith('file://')
+    if (!isInternal) {
+      event.preventDefault()
+      shell.openExternal(url)
+    }
   })
 
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
