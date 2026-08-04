@@ -32,6 +32,9 @@ const api = {
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', { key, value }),
   getAllSettings: () => ipcRenderer.invoke('settings:get-all'),
 
+  // Cookie Sync
+  getCookieSyncStatus: () => ipcRenderer.invoke('cookie-sync:get-status'),
+
   // Timeline
   listItems: (params: unknown) => ipcRenderer.invoke('timeline:list', params),
   refresh: (sourceIds?: string[]) => ipcRenderer.invoke('timeline:refresh', { sourceIds }),

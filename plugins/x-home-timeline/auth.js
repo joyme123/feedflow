@@ -59,7 +59,13 @@ async function verifyCookie(cookie) {
 
     return { valid: false, error: 'Cookie 无效或已过期，请重新登录 x.com' }
   } catch (err) {
-    return { valid: false, error: err.message }
+    // 如果 Cookie 包含 auth_token 但 API 调用失败（如 GraphQL operation ID 过期返回 404），
+    // 仍认为 Cookie 可能有效，允许同步。实际抓取时若 API 仍有问题会在刷新时提示。
+    const msg = err.message || ''
+    if (authToken && (msg.includes('404') || msg.includes('Query not found') || msg.includes('Unexpected status'))) {
+      return { valid: true, uid: null, screenName: null, error: 'API 端点可能已更新，Cookie 已保存' }
+    }
+    return { valid: false, error: msg }
   }
 }
 

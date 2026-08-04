@@ -7,6 +7,7 @@ import { registerIpcHandlers } from './ipc/handlers'
 import { loadPlugins } from './plugin-system/loader'
 import { decrypt } from './plugin-system/encryption'
 import { startMcpServer } from './mcp-server'
+import { startCookieSyncServer } from './cookie-sync/server'
 import { initAutoUpdater } from './auto-updater'
 
 /** 微博相关域名，用于设置 Cookie 和 Referer */
@@ -169,6 +170,9 @@ app.whenReady().then(async () => {
 
   // Start MCP server (失败不影响 app 运行)
   startMcpServer()
+
+  // Start cookie-sync server (失败不影响 app 运行)
+  startCookieSyncServer()
 
   // 设置微博图片 Cookie 的 IPC handler
   ipcMain.handle('set-weibo-cookie', async (_event, cookie: string) => {

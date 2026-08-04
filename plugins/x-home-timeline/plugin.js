@@ -40,7 +40,8 @@ const meta = {
   author: 'FeedFlow',
   color: '#1DA1F2',
   provider: 'x',
-  providerName: 'X'
+  providerName: 'X',
+  cookieDomains: ['x.com', 'twitter.com']
 }
 
 // ============================================================

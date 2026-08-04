@@ -3,6 +3,7 @@ import { useStore } from '../../store'
 import { TimelineItem } from './TimelineItem'
 import { TimelineSkeleton } from './TimelineSkeleton'
 import { PullToRefreshIndicator } from './PullToRefreshIndicator'
+import { RefreshErrorBanner } from './RefreshErrorBanner'
 import { EmptyState } from '../common/EmptyState'
 import styles from './TimelineView.module.css'
 
@@ -431,6 +432,8 @@ export function TimelineView(): JSX.Element {
           </button>
         </header>
 
+        <RefreshErrorBanner />
+
         {timelineLoading && items.length === 0 && (
           <TimelineSkeleton count={5} />
         )}
@@ -516,6 +519,8 @@ export function TimelineView(): JSX.Element {
           </button>
         )}
       </header>
+
+      <RefreshErrorBanner />
 
       {timelineLoading && items.length === 0 && (
         <TimelineSkeleton count={5} />

@@ -30,6 +30,13 @@ export interface PluginMeta {
    * Used as the label in credential UI. Defaults to `provider` when not set.
    */
   providerName?: string
+  /**
+   * Domains whose cookies this provider's plugins need (e.g. ["weibo.com", "weibo.cn"]).
+   * Used by the cookie-sync extension to know which sites to read cookies from
+   * and by the desktop to map an incoming sync domain to a provider.
+   * When omitted, the extension cannot auto-sync this provider's cookies.
+   */
+  cookieDomains?: string[]
 }
 
 /** A single configuration field rendered as a form input */

@@ -157,4 +157,19 @@ export function initializeDatabase(): void {
   } catch (err) {
     console.error('[Schema] credentials index creation failed:', err)
   }
+
+  // Migration: add cookie-sync tracking columns to credentials
+  // source, last_synced_at, last_sync_status, last_sync_error
+  try {
+    const credCols = db.prepare("PRAGMA table_info(credentials)").all() as { name: string }[]
+    const hasSource = credCols.some((c) => c.name === 'source')
+    if (!hasSource) {
+      db.exec(`ALTER TABLE credentials ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`)
+      db.exec(`ALTER TABLE credentials ADD COLUMN last_synced_at INTEGER`)
+      db.exec(`ALTER TABLE credentials ADD COLUMN last_sync_status TEXT`)
+      db.exec(`ALTER TABLE credentials ADD COLUMN last_sync_error TEXT`)
+    }
+  } catch (err) {
+    console.error('[Schema] credentials sync columns migration failed:', err)
+  }
 }

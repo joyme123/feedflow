@@ -8,6 +8,7 @@ import { refreshSources } from '../plugin-system/runner'
 import { resolveCredentialFields } from '../plugin-system/credentials'
 import { upsertItem } from '../database/queries/items'
 import { updateSource, getEnabledSources } from '../database/queries/sources'
+import { getExtensionStatus } from '../cookie-sync/server'
 import type { AddSourceInput } from '@shared/types/source'
 import type { TimelineListParams, DisplayItem, Item } from '@shared/types/item'
 import type { SourceConfig } from '@shared/types/plugin'
@@ -275,5 +276,10 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('settings:get-all', () => {
     return settingQueries.getAllSettings()
+  })
+
+  // ---- Cookie Sync ----
+  ipcMain.handle('cookie-sync:get-status', () => {
+    return getExtensionStatus()
   })
 }

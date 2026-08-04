@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useStore } from '../../store'
 import { Button } from '../common/Button'
 import type { ConfigField, SourceConfig, Credential } from '@shared/types'
+import type { ExtensionStatus } from '../credentials/CookieSyncBanner'
 import styles from './SourceConfigForm.module.css'
 
 interface SourceConfigFormProps {
@@ -38,11 +39,23 @@ export function SourceConfigForm({ schema, onSubmit, submitting, pluginId, onDyn
   // Dynamic group options for weibo-group-chat plugin
   const [groupOptions, setGroupOptions] = useState<{ label: string; value: string }[]>([])
   const [groupLoading, setGroupLoading] = useState(false)
+  const [extStatus, setExtStatus] = useState<ExtensionStatus>({
+    status: 'unknown',
+    lastSeen: null,
+    serverRunning: false,
+  })
 
   // Load credentials for the current plugin so the dropdown can list them
   useEffect(() => {
     loadCredentials()
   }, [loadCredentials])
+
+  // Check extension status to show auto-sync guidance
+  useEffect(() => {
+    window.api.getCookieSyncStatus()
+      .then((s) => setExtStatus(s as ExtensionStatus))
+      .catch(() => { /* ignore */ })
+  }, [])
 
   // Load group options when a credential is selected for weibo-group-chat
   useEffect(() => {
@@ -216,6 +229,17 @@ export function SourceConfigForm({ schema, onSubmit, submitting, pluginId, onDyn
                 >
                   + 添加新凭据
                 </Button>
+              )}
+
+              {extStatus.status === 'active' && (
+                <span className={styles.help} style={{ marginTop: 6, display: 'block' }}>
+                  💡 已检测到 FeedFlow 扩展，在浏览器中登录后 Cookie 会自动同步，无需手动添加。
+                </span>
+              )}
+              {extStatus.status === 'unknown' && (
+                <span className={styles.help} style={{ marginTop: 6, display: 'block' }}>
+                  💡 安装 <a href="#" onClick={(e) => { e.preventDefault(); window.open('https://chrome.google.com/webstore') }}>FeedFlow Chrome 扩展</a> 可自动同步 Cookie，无需手动粘贴。
+                </span>
               )}
 
               {addingCredFor === field.key && (

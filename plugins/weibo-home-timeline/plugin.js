@@ -39,7 +39,8 @@ const meta = {
   author: 'FeedFlow',
   color: '#E6162D',
   provider: 'weibo',
-  providerName: '微博'
+  providerName: '微博',
+  cookieDomains: ['weibo.com', 'weibo.cn']
 }
 
 // ============================================================
@@ -306,13 +307,18 @@ async function fetchItems(config, cursor) {
 
       return { items, nextCursor }
     }
+
+    // API 返回成功但无数据：可能是 Cookie 权限不足或接口变化
+    const detail = response ? `ok=${response.ok}, msg=${response.msg || '无'}` : '无响应'
+    throw new Error(`关注时间线接口返回异常（${detail}）。请检查 Cookie 是否仍然有效，或在浏览器中重新登录微博后自动同步。`)
   } catch (err) {
     console.warn('[weibo] unreadfriendstimeline failed:', err.message)
+    // 如果是上面主动抛出的错误，直接传递；否则包装为更友好的提示
+    if (err.message.includes('关注时间线接口返回异常')) {
+      throw err
+    }
+    throw new Error(`关注时间线接口暂时不可用（${err.message}）。请稍后重试，或检查 Cookie 是否仍然有效。`)
   }
-
-  throw new Error(
-    '关注时间线接口暂时不可用。请稍后重试，或检查 Cookie 是否仍然有效。'
-  )
 }
 
 // ============================================================

@@ -35,7 +35,8 @@ const meta = {
   color: '#333333',
   icon: '💬',
   provider: 'v2ex',
-  providerName: 'V2EX'
+  providerName: 'V2EX',
+  cookieDomains: ['v2ex.com']
 }
 
 // ============================================================

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useStore } from '../../store'
 import { Button } from '../common/Button'
+import { CookieSyncBanner, type ExtensionStatus } from './CookieSyncBanner'
 import type { Credential } from '@shared/types'
 import styles from './CredentialsPanel.module.css'
 
@@ -33,10 +34,25 @@ export function CredentialsPanel(): JSX.Element {
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [verifySuccess, setVerifySuccess] = useState<{ uid?: string; screenName?: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [extStatus, setExtStatus] = useState<ExtensionStatus>({
+    status: 'unknown',
+    lastSeen: null,
+    serverRunning: false,
+  })
+
+  const refreshExtStatus = async () => {
+    try {
+      const s = await window.api.getCookieSyncStatus()
+      setExtStatus(s as ExtensionStatus)
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
     loadCredentials()
     loadPlugins()
+    refreshExtStatus()
   }, [loadCredentials, loadPlugins])
 
   // Distinct providers across all plugins, preserving first-seen order.
@@ -55,6 +71,16 @@ export function CredentialsPanel(): JSX.Element {
 
   const providerLabel = (provider: string): string =>
     providers.find((p) => p.id === provider)?.label ?? provider
+
+  const timeAgo = (ts: number): string => {
+    const diff = Date.now() - ts
+    const min = Math.floor(diff / 60000)
+    if (min < 1) return '刚刚'
+    if (min < 60) return `${min} 分钟前`
+    const hr = Math.floor(min / 60)
+    if (hr < 24) return `${hr} 小时前`
+    return `${Math.floor(hr / 24)} 天前`
+  }
 
   // Pick any plugin of the given provider to delegate cookie verification.
   const pluginIdForProvider = (provider: string): string | undefined =>
@@ -176,6 +202,8 @@ export function CredentialsPanel(): JSX.Element {
         <Button variant="primary" size="sm" onClick={startAdd}>+ 添加凭据</Button>
       </div>
 
+      <CookieSyncBanner status={extStatus} onRefresh={() => { loadCredentials(); refreshExtStatus() }} />
+
       {(adding || editingId) && (
         <div className={styles.formCard}>
           <h3 className={styles.formTitle}>{editingId ? '编辑凭据' : '添加凭据'}</h3>
@@ -249,15 +277,30 @@ export function CredentialsPanel(): JSX.Element {
         {filtered.map((cred) => (
           <div key={cred.id} className={styles.credCard}>
             <div className={styles.credInfo}>
-              <span className={styles.credName}>{cred.name}</span>
+              <span className={styles.credName}>
+                {cred.name}
+                {cred.source === 'extension' && (
+                  <span className={styles.syncBadge} title="由扩展自动同步维护">🔄 自动同步</span>
+                )}
+              </span>
               <span className={styles.credMeta}>
                 {providerLabel(cred.provider)}
                 {cred.extra?.screenName ? ` · @${String(cred.extra.screenName)}` : ''}
                 {cred.extra?.uid ? ` (UID: ${String(cred.extra.uid)})` : ''}
+                {cred.lastSyncedAt && ` · 上次同步 ${timeAgo(cred.lastSyncedAt)}`}
+                {cred.lastSyncStatus === 'failed' && cred.lastSyncError && ` · 同步失败: ${cred.lastSyncError}`}
               </span>
             </div>
             <div className={styles.credActions}>
-              <Button variant="ghost" size="sm" onClick={() => startEdit(cred)}>编辑</Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => startEdit(cred)}
+                disabled={cred.source === 'extension'}
+                title={cred.source === 'extension' ? '此凭据由扩展自动维护，无法手动编辑' : ''}
+              >
+                编辑
+              </Button>
               <Button variant="danger" size="sm" onClick={() => handleDelete(cred)}>删除</Button>
             </div>
           </div>
