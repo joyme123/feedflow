@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Badge } from '../common/Badge'
 import { ImageLightbox } from '../common/ImageLightbox'
 import type { DisplayItem } from '@shared/types/item'
@@ -49,6 +49,19 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
   const isTruncated = !!metadata.isTruncated
   console.log('[TimelineItem] render', item.id, '| isTruncated=', isTruncated, '| contentTextLen=', (item.contentText || '').length, '| hasPermalink=', !!item.permalink)
 
+  // 内容容器 ref + 真实溢出检测：CSS 用 -webkit-line-clamp: 6 折叠长文，
+  // 但字符数 > 300 才显示展开按钮会漏掉「行数超 6 行但字符数不足 300」的情况
+  // （短行、多换行、带媒体的推文很常见），导致内容被截断却没有展开入口。
+  // 改为直接测量 scrollHeight > clientHeight 判断是否被 CSS 截断。
+  const contentRef = useRef<HTMLDivElement | HTMLParagraphElement | null>(null)
+  const [contentOverflow, setContentOverflow] = useState(false)
+  const setContentRef = (node: HTMLDivElement | HTMLParagraphElement | null) => {
+    contentRef.current = node
+    if (node) {
+      setContentOverflow(node.scrollHeight - node.clientHeight > 1)
+    }
+  }
+
   // 点击"查看更多"：通过 IPC 拉取单条微博完整正文并内联展开
   const handleViewMore = async () => {
     console.log('[TimelineItem] handleViewMore CLICKED for item', item.id, '| detailLoading=', detailLoading, '| fullContent=', !!fullContent)
@@ -86,13 +99,27 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
     mediaUrls = []
   }
 
-  // 判断内容是否需要展开/收起（超过阈值字符数视为长内容）
-  const EXPAND_THRESHOLD = 300
-  // 已拉取完整正文时，用完整内容参与长度判断与渲染
+  // 判断内容是否需要展开/收起：用真实 DOM 溢出检测（scrollHeight > clientHeight）
+  // 替代原先的字符数阈值（>300），避免「行数超 6 行但字符数不足 300」时
+  // 内容被 CSS line-clamp 截断却没有展开按钮的问题。
   const activeContentText = fullContent ? fullContent.text : (item.contentText || '')
   const activeContentHtml = fullContent ? fullContent.html : item.contentHtml
-  const needsExpand = activeContentText.length > EXPAND_THRESHOLD
-  const contentCollapsed = needsExpand && !expanded
+  // 折叠条件：未展开 且（非插件截断 或 已拉取完整正文）
+  const contentCollapsed = !expanded && (!isTruncated || !!fullContent)
+  const needsExpand = contentOverflow
+
+  // 折叠状态变化 / 窗口尺寸变化时重新测量，避免按钮残留或漏显
+  useEffect(() => {
+    const measure = () => {
+      const node = contentRef.current
+      if (node) {
+        setContentOverflow(node.scrollHeight - node.clientHeight > 1)
+      }
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [contentCollapsed])
 
   // 检测视频 URL（微博视频通常是 .mp4 或 .mov 格式）
   const videoUrl = mediaUrls.find(
@@ -123,6 +150,7 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
 
         <div className={styles.chatBody}>
           <div
+            ref={setContentRef}
             className={`${styles.chatContent} ${contentCollapsed ? styles.chatContentCollapsed : ''}`}
             dangerouslySetInnerHTML={{ __html: chatHtml }}
           />
@@ -184,17 +212,21 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
       <div className={styles.body}>
         {activeContentHtml ? (
           <div
+            ref={setContentRef}
             className={`${styles.content} ${contentCollapsed ? styles.contentCollapsed : ''}`}
             dangerouslySetInnerHTML={{ __html: activeContentHtml }}
           />
         ) : (
-          <p className={`${styles.content} ${contentCollapsed ? styles.contentCollapsed : ''}`}>
+          <p
+            ref={setContentRef}
+            className={`${styles.content} ${contentCollapsed ? styles.contentCollapsed : ''}`}
+          >
             {activeContentText}
           </p>
         )}
 
-        {/* 展开/收起按钮（内容超长时显示；截断内容需先点"查看更多"拉取完整正文） */}
-        {needsExpand && (!isTruncated || fullContent) && (
+        {/* 展开/收起按钮（内容被 CSS 折叠时显示；截断内容需先点"查看更多"拉取完整正文） */}
+        {needsExpand && (
           <button
             className={styles.expandButton}
             onClick={() => setExpanded((prev) => !prev)}

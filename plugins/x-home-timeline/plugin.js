@@ -20,6 +20,8 @@
 const {
   fetchHomeTimeline,
   fetchViewer,
+  fetchTweetById,
+  extractTweetFromDetailResponse,
   extractTweets,
   extractNextCursor,
   extractViewerInfo,
@@ -99,6 +101,14 @@ const configSchema = [
     default: '',
     placeholder: '留空使用内置默认值',
     helpText: '用于验证 Cookie 有效性。Network 中过滤 "Viewer"。'
+  },
+  {
+    key: 'tweetResultByRestIdOpId',
+    label: '推文详情 Operation ID',
+    type: 'text',
+    default: '',
+    placeholder: '留空使用内置默认值',
+    helpText: '用于内联展开长推文（点击"查看更多"时拉取完整正文）。Network 中过滤 "TweetResultByRestId"。'
   }
 ]
 
@@ -174,6 +184,32 @@ function extractUserInfo(tweet) {
 let loggedTweetStructure = false
 
 /**
+ * 获取推文完整文本：优先使用 note_tweet 字段（长推文完整正文），
+ * 否则使用 legacy.full_text（可能被截断）。
+ *
+ * X 的长推文（超过 280 字符）在时间线接口中：
+ *   - legacy.full_text 会被截断，末尾带省略号 "…"
+ *   - note_tweet.note_tweet_results.result.text 包含完整正文
+ *
+ * @returns {{ text: string, isTruncated: boolean }} 完整/截断文本及是否被截断
+ */
+function getFullTweetText(tweet) {
+  const legacy = tweet?.legacy || {}
+  const fullText = legacy.full_text || ''
+
+  // 尝试从 note_tweet 取完整正文
+  const noteText = tweet?.note_tweet?.note_tweet_results?.result?.text
+  if (noteText && noteText.length > fullText.length) {
+    return { text: noteText, isTruncated: false }
+  }
+
+  // 没有 note_tweet：检查 full_text 是否被截断（末尾带省略号）
+  // X 截断标记通常是 "…"（U+2026 单个省略号）或 "..."（三个点）
+  const isTruncated = !noteText && /(?:…|\.{2,})\s*$/.test(fullText)
+  return { text: fullText, isTruncated }
+}
+
+/**
  * 将 X.com 推文对象映射为 FeedFlow TimelineItem
  *
  * 推文结构 (GraphQL):
@@ -204,14 +240,17 @@ function mapTweetToItem(tweet) {
   // 提取图片/视频 URL
   const mediaUrls = extractMediaUrls(legacy)
 
+  // 处理正文：优先使用 note_tweet 完整正文，否则用 full_text（可能被截断）
+  const { text: mainText, isTruncated } = getFullTweetText(tweet)
+  let displayText = mainText
+
   // 处理转发推文 (retweet)
-  let displayText = legacy.full_text || ''
   const retweetResult = legacy.retweeted_status_result?.result
   if (retweetResult) {
     const rtUser = extractUserInfo(retweetResult)
     const rtName = rtUser.screenName ? `@${rtUser.screenName}` : ''
-    const rtText = retweetResult.legacy?.full_text || ''
-    displayText = `🔁 ${rtName}:\n${rtText}`
+    const rtResult = getFullTweetText(retweetResult)
+    displayText = `🔁 ${rtName}:\n${rtResult.text}`
   }
 
   // 处理引用推文 (quote)
@@ -219,8 +258,8 @@ function mapTweetToItem(tweet) {
   if (quoteResult && !retweetResult) {
     const quoteUser = extractUserInfo(quoteResult)
     const quoteName = quoteUser.screenName ? `@${quoteUser.screenName}` : ''
-    const quoteText = quoteResult.legacy?.full_text || ''
-    displayText += `\n\n📎 ${quoteName}:\n${quoteText}`
+    const quoteResult2 = getFullTweetText(quoteResult)
+    displayText += `\n\n📎 ${quoteName}:\n${quoteResult2.text}`
   }
 
   const tweetId = tweet.rest_id || legacy.id_str || ''
@@ -247,6 +286,7 @@ function mapTweetToItem(tweet) {
       quoteCount: legacy.quote_count || 0,
       isRetweet: !!retweetResult,
       isQuote: !!quoteResult && !retweetResult,
+      isTruncated,
       lang: legacy.lang || '',
       source: stripHtml(typeof legacy.source === 'string' ? legacy.source : '')
     }
@@ -450,6 +490,71 @@ async function fetchItems(config, cursor) {
 }
 
 // ============================================================
+// fetchItemDetail — 拉取单条推文完整正文（用于内联展开长推文）
+// ============================================================
+
+/**
+ * 获取单条推文的完整内容。
+ *
+ * 时间线接口返回的长推文（note_tweet）其 legacy.full_text 会被截断，
+ * 此函数通过 TweetResultByRestId 接口拉取单条详情，
+ * 拿到 note_tweet 完整正文，供 UI 层内联展开，无需跳转浏览器。
+ *
+ * @param {SourceConfig} config - 用户配置（含 cookie）
+ * @param {string} externalId - 推文 rest_id
+ * @returns {Promise<ItemDetailResult>}
+ */
+async function fetchItemDetail(config, externalId) {
+  console.log('[x] fetchItemDetail CALLED, externalId=', externalId, '| hasCookie=', !!config.cookie)
+  const cookie = config.cookie
+  if (!cookie) {
+    throw new Error('X Cookie 未配置。请在源设置中填入 x.com 的 Cookie。')
+  }
+  if (!externalId) {
+    throw new Error('缺少推文 ID，无法获取完整内容。')
+  }
+
+  const response = await fetchTweetById(cookie, externalId, config.tweetResultByRestIdOpId || undefined)
+  const tweet = extractTweetFromDetailResponse(response)
+  if (!tweet || (!tweet.legacy?.full_text && !tweet.note_tweet)) {
+    throw new Error('获取推文完整内容失败，请稍后重试。')
+  }
+
+  // 优先使用 note_tweet 完整正文
+  const { text: mainText } = getFullTweetText(tweet)
+  let displayText = mainText
+
+  // 处理转发推文
+  const retweetResult = tweet.legacy?.retweeted_status_result?.result
+  if (retweetResult) {
+    const rtUser = extractUserInfo(retweetResult)
+    const rtName = rtUser.screenName ? `@${rtUser.screenName}` : ''
+    const rtResult = getFullTweetText(retweetResult)
+    displayText = `🔁 ${rtName}:\n${rtResult.text}`
+  }
+
+  // 处理引用推文
+  const quoteResult = tweet.legacy?.quoted_status_result?.result
+  if (quoteResult && !retweetResult) {
+    const quoteUser = extractUserInfo(quoteResult)
+    const quoteName = quoteUser.screenName ? `@${quoteUser.screenName}` : ''
+    const quoteResult2 = getFullTweetText(quoteResult)
+    displayText += `\n\n📎 ${quoteName}:\n${quoteResult2.text}`
+  }
+
+  const result = {
+    content: {
+      text: stripHtml(displayText) || '',
+      html: displayText
+    },
+    // 已拿到完整正文，不再标记为截断
+    metadata: { isTruncated: false }
+  }
+  console.log('[x] fetchItemDetail RETURNING content.text length=', result.content.text.length)
+  return result
+}
+
+// ============================================================
 // 生命周期
 // ============================================================
 
@@ -465,6 +570,7 @@ const xPlugin = {
   meta,
   configSchema,
   fetchItems,
+  fetchItemDetail,
   onRegister
 }
 

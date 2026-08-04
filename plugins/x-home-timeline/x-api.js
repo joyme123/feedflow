@@ -26,17 +26,22 @@ const PUBLIC_BEARER_TOKEN =
 
 // GraphQL Operation IDs（X.com 前端更新时可能变化）
 // 这些是已知的备用默认值；插件会优先从 X.com 网页 JS 中动态解析最新 ID
+// 注意：x.com 首页(/) 已切换为 Vite 构建的 entry-client-logged-out-*.js，
+//       而 GraphQL operations 仍在 /home 加载的 main.{hash}.js 中。
+//       动态解析器会同时检查 / 和 /home 两个页面。
 const OPERATION_IDS = {
   // "关注" 时间线（最新推文）
   HomeLatestTimeline: '0vp2Au9doTKsbn2vIk48Dg',
   // "为你推荐" 时间线
   HomeTimeline: 'xhYBF94fPSp8ey64FfYXiA',
   // 当前登录用户信息（验证 Cookie 有效性）
-  Viewer: 'k5X2qB7lgY3SjV7Hr4RcZw'
+  Viewer: '5XShkXk2oO2J7SYmTu6pvw',
+  // 单条推文详情（用于内联展开长推文）
+  TweetResultByRestId: 'LkId5Akr61BS6BmOIcffRg'
 }
 
 // 需要动态解析的 operation 名称
-const RESOLVABLE_OPERATIONS = ['HomeLatestTimeline', 'HomeTimeline', 'Viewer']
+const RESOLVABLE_OPERATIONS = ['HomeLatestTimeline', 'HomeTimeline', 'Viewer', 'TweetResultByRestId']
 
 // 动态解析的 operation ID 内存缓存（应用生命周期内有效）
 let resolvedOperationIds = null
@@ -62,7 +67,17 @@ const DEFAULT_FEATURES = {
   communities_web_grok_restrict_summary_fetch: false,
   responsive_web_grok_restrict_summary_fetch: false,
   rweb_tipjar_consumption_enabled: true,
-  responsive_web_enhance_cards_enabled: false
+  responsive_web_enhance_cards_enabled: false,
+  // 以下特性为 TweetResultByRestId 拉取长推文(note_tweet)完整正文所必需
+  premium_content_api_read_enabled: false,
+  longform_notetweets_consumption_enabled: true,
+  responsive_web_twitter_article_tweet_consumption_enabled: false,
+  longform_notetweets_rich_text_read_enabled: true,
+  longform_notetweets_inline_media_enabled: true,
+  responsive_web_grok_annotations_enabled: false,
+  articles_preview_enabled: false,
+  view_counts_everywhere_api_enabled: true,
+  freedom_of_speech_not_reach_fetch_enabled: true
 }
 
 // ============================================================
@@ -248,23 +263,35 @@ async function resolveOperationIds() {
     try {
       console.log('[x-api] 正在从 X.com 网页动态解析 GraphQL operation ID...')
 
-      // 1. 抓取 x.com 首页 HTML
-      const html = await httpsGet(X_HOST, '/')
+      // x.com 首页(/) 已切换为 Vite 构建的 entry-client-logged-out-*.js，
+      // 而 GraphQL operations 仍在 /home 加载的 main.{hash}.js 中。
+      // 依次尝试 /home 和 /，找到 main.{hash}.js 即可。
+      let mainHash = null
+      for (const path of ['/home', '/']) {
+        try {
+          const html = await httpsGet(X_HOST, path)
+          const match = html.match(/\/client-web\/main\.([a-z0-9]+)\./)
+          if (match) {
+            mainHash = match[1]
+            console.log(`[x-api] 在 x.com${path} 找到 main.${mainHash}.js`)
+            break
+          }
+        } catch {
+          // 继续尝试下一个路径
+        }
+      }
 
-      // 2. 提取 main.{hash}.js 的 URL（X.com 首页引用了客户端 JS bundle）
-      const mainMatch = html.match(/\/client-web\/main\.([a-z0-9]+)\./)
-      if (!mainMatch) {
-        console.warn('[x-api] 未在 X.com 首页找到 main.js URL，使用备用 operation ID')
+      if (!mainHash) {
+        console.warn('[x-api] 未在 X.com 页面找到 main.js URL，使用备用 operation ID')
         return {}
       }
 
-      const mainJsUrl = `https://abs.twimg.com/responsive-web/client-web/main.${mainMatch[1]}.js`
-      console.log(`[x-api] 正在下载 JS bundle: main.${mainMatch[1]}.js`)
+      console.log(`[x-api] 正在下载 JS bundle: main.${mainHash}.js`)
 
-      // 3. 下载 JS bundle
-      const jsContent = await httpsGet('abs.twimg.com', `/responsive-web/client-web/main.${mainMatch[1]}.js`)
+      // 下载 JS bundle
+      const jsContent = await httpsGet('abs.twimg.com', `/responsive-web/client-web/main.${mainHash}.js`)
 
-      // 4. 用正则提取 queryId 和 operationName 的映射
+      // 用正则提取 queryId 和 operationName 的映射
       // X.com JS 中的格式: queryId:"xxxx",operationName:"HomeLatestTimeline"
       const ids = {}
       const regex = /queryId:"([^"]+)".+?operationName:"([^"]+)"/g
@@ -405,6 +432,46 @@ async function fetchViewer(cookie, opId) {
   }
 
   return httpsPost(path, body, cookie)
+}
+
+/**
+ * 获取单条推文详情（用于内联展开长推文）
+ * POST https://x.com/i/api/graphql/{opId}/TweetResultByRestId
+ *
+ * 时间线接口返回的长推文（note_tweet）其 legacy.full_text 会被截断，
+ * 此接口返回完整的 note_tweet 正文，供 UI 层内联展开。
+ *
+ * 返回结构: { data: { tweetResult: { result: { ...tweet... } } } }
+ *
+ * @param {string} cookie    - x.com Cookie
+ * @param {string} restId    - 推文 rest_id
+ * @param {string} [opId]    - 自定义 GraphQL operation ID（覆盖默认值）
+ */
+async function fetchTweetById(cookie, restId, opId) {
+  const operationId = await getOperationId('TweetResultByRestId', opId)
+  const path = `/i/api/graphql/${operationId}/TweetResultByRestId`
+
+  const body = {
+    variables: {
+      restId,
+      withCommunity: false
+    },
+    features: DEFAULT_FEATURES,
+    fieldToggles: {
+      withArticlePlainText: false
+    }
+  }
+
+  return httpsPost(path, body, cookie)
+}
+
+/**
+ * 从单条推文详情响应中提取推文对象
+ *
+ * 响应结构: { data: { tweetResult: { result: { ... } } } }
+ */
+function extractTweetFromDetailResponse(response) {
+  return response?.data?.tweetResult?.result || null
 }
 
 // ============================================================
@@ -592,6 +659,8 @@ module.exports = {
   getOperationId,
   fetchHomeTimeline,
   fetchViewer,
+  fetchTweetById,
+  extractTweetFromDetailResponse,
   extractTweets,
   extractNextCursor,
   extractViewerInfo,

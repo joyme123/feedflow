@@ -16,9 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - V2EX plugin with public API support
 - `CHANGELOG.md` and release changelog mechanism; release notes now sourced from this file
 - `README.md`; `CLAUDE.md` reorganized into `AGENTS.md` with a pointer `CLAUDE.md`
+- X (Twitter) plugin: inline expansion of truncated long tweets via `fetchItemDetail` (mirrors weibo "展开更多" behavior)
 
 ### Changed
 - Open all links in the system browser uniformly
+- Timeline "展开" button now shown whenever content is actually clipped by CSS line-clamp (was previously gated on a 300-character threshold, so many multi-line posts had no expand control)
+
+### Fixed
+- X (Twitter) plugin: fix `fetchItemDetail` returning HTTP 422 by updating the stale `TweetResultByRestId` and `Viewer` GraphQL operation IDs, fixing the dynamic operation-ID resolver to look at `x.com/home` (where `main.{hash}.js` is still served), and adding the `longform_notetweets_*` feature flags required to fetch full `note_tweet` text
 
 ## [0.1.0] - 2026-08-01
 
