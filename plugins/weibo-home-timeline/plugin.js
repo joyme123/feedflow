@@ -18,6 +18,7 @@
 
 const {
   fetchFriendsTimeline,
+  fetchFriendsTimelineFallback,
   fetchAllGroups,
   extractAllFollowListId,
   fetchUserBlogs,
@@ -270,10 +271,12 @@ async function fetchItems(config, cursor) {
       const groupsResponse = await fetchAllGroups(cookie)
       cachedListId = extractAllFollowListId(groupsResponse)
       listIdCacheTime = now
+      console.log(`[weibo] allGroups ok, list_id=${cachedListId}`)
     } catch (err) {
       console.warn('[weibo] Failed to fetch allGroups:', err.message)
     }
   }
+  console.log(`[weibo] fetchItems params: count=${count}, since_id=${sinceId || '0'}, max_id=${maxId || '无'}, list_id=${cachedListId || '无'}`)
 
   // 构建 API 参数: max_id 优先 (加载更旧的微博)，否则用 since_id (增量刷新)
   const params = { count, refresh: 4 }
@@ -287,8 +290,23 @@ async function fetchItems(config, cursor) {
   }
 
   try {
-    const response = await fetchFriendsTimeline(cookie, params)
+    let response
+    let usedFallback = false
+    try {
+      response = await fetchFriendsTimeline(cookie, params)
+    } catch (primaryErr) {
+      // unreadfriendstimeline 失败（常见原因: XSRF-TOKEN 失效 / 接口变更），
+      // 回退到旧版 friends_timeline 接口再试一次
+      console.warn('[weibo] unreadfriendstimeline 失败，尝试 friends_timeline 回退:', primaryErr.message)
+      usedFallback = true
+      const fallbackParams = { count }
+      if (maxId) fallbackParams.max_id = maxId
+      else fallbackParams.since_id = sinceId || '0'
+      response = await fetchFriendsTimelineFallback(cookie, fallbackParams)
+    }
+
     const statuses = extractStatuses(response)
+    console.log(`[weibo] timeline response (${usedFallback ? 'fallback' : 'primary'}): ok=${response?.ok}, statuses=${statuses.length}, msg=${response?.msg || '无'}`)
 
     if (statuses.length > 0 || response?.ok === 1) {
       const items = statuses.map(mapStatusToItem)
@@ -312,7 +330,7 @@ async function fetchItems(config, cursor) {
     const detail = response ? `ok=${response.ok}, msg=${response.msg || '无'}` : '无响应'
     throw new Error(`关注时间线接口返回异常（${detail}）。请检查 Cookie 是否仍然有效，或在浏览器中重新登录微博后自动同步。`)
   } catch (err) {
-    console.warn('[weibo] unreadfriendstimeline failed:', err.message)
+    console.warn('[weibo] fetchItems failed:', err.message)
     // 如果是上面主动抛出的错误，直接传递；否则包装为更友好的提示
     if (err.message.includes('关注时间线接口返回异常')) {
       throw err

@@ -31,21 +31,38 @@ function sanitizeCookie(cookie) {
   return cookie.replace(/[\r\n\t]/g, '').trim()
 }
 
+/**
+ * 从 Cookie 字符串中提取指定字段的值
+ * （用于提取 XSRF-TOKEN，微博 AJAX 接口要求在请求头中回传此 token）
+ */
+function extractCookieField(cookie, fieldName) {
+  if (!cookie) return ''
+  const match = cookie.match(new RegExp(`(?:^|;\\s*)${fieldName}=([^;]*)`))
+  return match ? decodeURIComponent(match[1].trim()) : ''
+}
+
 /** 发起 HTTPS GET 请求（带 Cookie） */
 function httpsGet(path, cookie, host = WEIBO_HOST) {
   const cleanCookie = sanitizeCookie(cookie)
+  // 微博部分 AJAX 接口（如 unreadfriendstimeline）要求在请求头中回传 XSRF-TOKEN，
+  // 否则返回 ok=-100（认证失败）。XSRF-TOKEN 存储在 Cookie 中，需提取后放入 x-xsrf-token 头。
+  const xsrfToken = extractCookieField(cleanCookie, 'XSRF-TOKEN')
+  const headers = {
+    'Cookie': cleanCookie,
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'application/json, text/plain, */*',
+    'X-Requested-With': 'XMLHttpRequest',
+    'Referer': `https://${host}/`
+  }
+  if (xsrfToken) {
+    headers['x-xsrf-token'] = xsrfToken
+  }
   return new Promise((resolve, reject) => {
     const req = https.get(
       {
         hostname: host,
         path,
-        headers: {
-          'Cookie': cleanCookie,
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json, text/plain, */*',
-          'X-Requested-With': 'XMLHttpRequest',
-          'Referer': `https://${host}/`
-        },
+        headers,
         timeout: 15000
       },
       (res) => {
@@ -59,10 +76,13 @@ function httpsGet(path, cookie, host = WEIBO_HOST) {
           try {
             const json = JSON.parse(body)
             if (json.ok === -100) {
-              reject(new ApiError(-100, 'Cookie 已过期或需要重新登录，请重新登录 weibo.com'))
+              // 记录完整响应体，便于排查 XSRF / Cookie 问题
+              console.warn(`[weibo-api] ${path} 返回 ok=-100, body=${body.slice(0, 300)}`)
+              reject(new ApiError(-100, json.msg || 'Cookie 已过期或需要重新登录，请重新登录 weibo.com'))
               return
             }
             if (json.ok !== undefined && json.ok !== 1 && json.ok !== 0) {
+              console.warn(`[weibo-api] ${path} 返回 ok=${json.ok}, body=${body.slice(0, 300)}`)
               reject(new ApiError(json.ok || -1, json.msg || 'API 返回未知错误'))
               return
             }
@@ -104,6 +124,8 @@ class ApiError extends Error {
  * 一次调用即可获取整个关注流，无需逐个用户拉取。
  * 与浏览器实际调用一致，使用 list_id（"全部关注"分组 ID）。
  *
+ * 注意: 此接口要求请求头携带有效的 x-xsrf-token，否则返回 ok=-100。
+ *
  * @param {string} cookie    - weibo.com Cookie
  * @param {object} params
  * @param {number} [params.count]    - 单页条数 (默认 15)
@@ -120,6 +142,29 @@ function fetchFriendsTimeline(cookie, params) {
   if (params.max_id) query.set('max_id', params.max_id)
   if (params.refresh !== undefined) query.set('refresh', params.refresh)
   return httpsGet(`/ajax/feed/unreadfriendstimeline?${query.toString()}`, cookie)
+}
+
+/**
+ * 获取关注时间线（备用方案）
+ * GET https://weibo.com/ajax/statuses/friends_timeline
+ *
+ * 当 unreadfriendstimeline 因 XSRF / 接口变更失败时的回退接口。
+ * 参数与 unreadfriendstimeline 类似，但不需要 list_id / refresh。
+ *
+ * @param {string} cookie    - weibo.com Cookie
+ * @param {object} params
+ * @param {number} [params.count]    - 单页条数
+ * @param {string} [params.since_id] - 返回 ID 大于此值的微博 (增量)
+ * @param {string} [params.max_id]   - 返回 ID 小于此值的微博 (向下翻页)
+ * @param {number} [params.page]     - 页码
+ */
+function fetchFriendsTimelineFallback(cookie, params) {
+  const query = new URLSearchParams()
+  if (params.count) query.set('count', params.count)
+  if (params.since_id) query.set('since_id', params.since_id)
+  if (params.max_id) query.set('max_id', params.max_id)
+  if (params.page) query.set('page', params.page)
+  return httpsGet(`/ajax/statuses/friends_timeline?${query.toString()}`, cookie)
 }
 
 /**
@@ -278,6 +323,7 @@ module.exports = {
   ApiError,
   httpsGet,
   fetchFriendsTimeline,
+  fetchFriendsTimelineFallback,
   fetchAllGroups,
   extractAllFollowListId,
   fetchUserBlogs,
