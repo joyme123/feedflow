@@ -18,6 +18,8 @@
     "package:mac": "electron-vite build && electron-builder --mac",
     "package:win": "electron-vite build && electron-builder --win",
     "package:linux": "electron-vite build && electron-builder --linux",
+    "package:extension": "node scripts/package-extension.mjs",
+    "publish:extension": "node scripts/publish-chrome-web-store.mjs",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {

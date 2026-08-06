@@ -52,6 +52,35 @@ jobs:
           exit 1
 
   # ----------------------------------------------------------------------
+  # 扩展打包：将 extensions/cookie-sync 打包为 Chrome Web Store 可上传的 ZIP
+  # 扩展有独立的版本号（manifest.json），与桌面端版本解耦，因此不做版本一致性校验。
+  # ----------------------------------------------------------------------
+  package-extension:
+    name: Package Chrome extension
+    needs: version-check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Package extension
+        run: npm run package:extension
+
+      - name: Upload extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: feedflow-cookie-sync-extension
+          path: feedflow-cookie-sync-*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  # ----------------------------------------------------------------------
   # 构建：每个平台在原生 runner 上构建，确保 better-sqlite3 等原生模块正确
   # ----------------------------------------------------------------------
   build:
@@ -159,7 +188,7 @@ jobs:
   # ----------------------------------------------------------------------
   release:
     name: Create GitHub Release
-    needs: build
+    needs: [build, package-extension]
     runs-on: ubuntu-latest
     steps:
       # 需要检出代码以读取 CHANGELOG.md 并调用 scripts/extract-changelog-section.sh
@@ -205,3 +234,54 @@ jobs:
             artifacts/*.deb
             artifacts/*.rpm
             artifacts/latest*.yml
+
+  # ----------------------------------------------------------------------
+  # 发布到 Chrome Web Store：上传扩展 ZIP 并提交审核
+  # 受保护环境 chrome-web-store：在仓库设置中为该环境配置人工审批门，避免误发布。
+  # 未配置发布凭据时跳过，不阻塞 GitHub Release。
+  # ----------------------------------------------------------------------
+  publish-extension:
+    name: Publish extension to Chrome Web Store
+    needs: package-extension
+    runs-on: ubuntu-latest
+    environment: chrome-web-store
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download extension artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: feedflow-cookie-sync-extension
+
+      - name: Resolve package path
+        id: pkg
+        run: echo "zip=$(ls feedflow-cookie-sync-*.zip)" >> "$GITHUB_OUTPUT"
+
+      # 环境级变量只有进入环境后才可见，所以降级判断放在步骤级而非 job 级 if。
+      - name: Check publish credentials
+        id: creds
+        run: |
+          if [ -n "${{ vars.CWS_PUBLISHER_ID }}" ] && [ -n "${{ vars.CWS_EXTENSION_ID }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Chrome Web Store 发布凭据未配置，跳过发布。"
+          fi
+
+      - name: Upload and publish
+        if: steps.creds.outputs.configured == 'true'
+        env:
+          CWS_SERVICE_ACCOUNT_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+          CWS_ZIP_PATH: ${{ steps.pkg.outputs.zip }}
+          CWS_PUBLISH_TARGET: ${{ vars.CWS_PUBLISH_TARGET || 'DEFAULT_PUBLISH' }}
+        run: npm run publish:extension
+
