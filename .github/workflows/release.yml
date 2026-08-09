@@ -249,6 +249,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # 需要完整历史以比较上一个 release tag 以来 extensions/ 目录的变更
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -275,8 +278,27 @@ jobs:
             echo "::notice::Chrome Web Store 发布凭据未配置，跳过发布。"
           fi
 
+      # 仅当 extensions/ 目录自上一个 release tag 以来有变更时才发布到商店，
+      # 避免桌面端发版时重复提交未改动的扩展进入审核队列。
+      - name: Check if extension changed since last release
+        id: ext-changed
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::未找到上一个 release tag，按首次发布处理。"
+            exit 0
+          fi
+          if git diff --quiet "$PREV_TAG" HEAD -- extensions/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::扩展自 $PREV_TAG 以来无变化，跳过 Chrome Web Store 发布。"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::扩展自 $PREV_TAG 以来有变更，将发布到 Chrome Web Store。"
+          fi
+
       - name: Upload and publish
-        if: steps.creds.outputs.configured == 'true'
+        if: steps.creds.outputs.configured == 'true' && steps.ext-changed.outputs.changed == 'true'
         env:
           CWS_SERVICE_ACCOUNT_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
           CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
