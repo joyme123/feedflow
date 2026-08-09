@@ -1,6 +1,6 @@
 {
   "name": "feedflow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "FeedFlow — 多源信息流聚合桌面应用",
   "main": "./out/main/index.js",
   "author": {

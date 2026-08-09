@@ -12,8 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-09
+
 ### Added
 - V2EX plugin with public API support
+- Chrome 扩展 Cookie 自动同步
+- Chrome 扩展自动发布流程 + 隐私权政策
 - `CHANGELOG.md` and release changelog mechanism; release notes now sourced from this file
 - `README.md`; `CLAUDE.md` reorganized into `AGENTS.md` with a pointer `CLAUDE.md`
 - X (Twitter) plugin: inline expansion of truncated long tweets via `fetchItemDetail` (mirrors weibo "展开更多" behavior)
@@ -24,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - X (Twitter) plugin: fix `fetchItemDetail` returning HTTP 422 by updating the stale `TweetResultByRestId` and `Viewer` GraphQL operation IDs, fixing the dynamic operation-ID resolver to look at `x.com/home` (where `main.{hash}.js` is still served), and adding the `longform_notetweets_*` feature flags required to fetch full `note_tweet` text
+- 微博 plugin: fix XSRF-TOKEN 失效导致关注时间线拉取失败
 
 ## [0.1.0] - 2026-08-01
 
@@ -46,5 +51,6 @@ First stable release.
 - 微博 group chat image loading
 - Various `provider` migration and default-value issues
 
-[Unreleased]: https://github.com/joyme123/feedflow/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/joyme123/feedflow/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/joyme123/feedflow/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/joyme123/feedflow/releases/tag/v0.1.0
