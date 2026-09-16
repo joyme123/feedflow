@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid'
 import { getDb } from '../connection'
 import { encrypt, decrypt } from '../../plugin-system/encryption'
-import type { Credential, AddCredentialInput, UpdateCredentialInput, CredentialSource, SyncStatus } from '@shared/types/credential'
+import type { Credential, AddCredentialInput, UpdateCredentialInput, CredentialSource, SyncStatus, VerifyStatus } from '@shared/types/credential'
 
 function rowToCredential(row: Record<string, unknown>): Credential {
   let extra: Record<string, unknown> = {}
@@ -22,10 +22,13 @@ function rowToCredential(row: Record<string, unknown>): Credential {
     lastSyncedAt: row.last_synced_at != null ? Number(row.last_synced_at) : null,
     lastSyncStatus: (row.last_sync_status as SyncStatus) ?? null,
     lastSyncError: (row.last_sync_error as string) ?? null,
+    lastVerifiedAt: row.last_verified_at != null ? Number(row.last_verified_at) : null,
+    lastVerifyStatus: (row.last_verify_status as VerifyStatus) ?? null,
+    lastVerifyError: (row.last_verify_error as string) ?? null,
   }
 }
 
-const SELECT_COLS = `id, provider, name, value, extra, created_at, updated_at, source, last_synced_at, last_sync_status, last_sync_error`
+const SELECT_COLS = `id, provider, name, value, extra, created_at, updated_at, source, last_synced_at, last_sync_status, last_sync_error, last_verified_at, last_verify_status, last_verify_error`
 
 export function listCredentials(provider?: string): Credential[] {
   const db = getDb()
@@ -88,6 +91,9 @@ export function updateCredential(id: string, data: UpdateCredentialInput): Crede
   if (data.lastSyncedAt !== undefined) { fields.push('last_synced_at = ?'); values.push(data.lastSyncedAt) }
   if (data.lastSyncStatus !== undefined) { fields.push('last_sync_status = ?'); values.push(data.lastSyncStatus) }
   if (data.lastSyncError !== undefined) { fields.push('last_sync_error = ?'); values.push(data.lastSyncError) }
+  if (data.lastVerifiedAt !== undefined) { fields.push('last_verified_at = ?'); values.push(data.lastVerifiedAt) }
+  if (data.lastVerifyStatus !== undefined) { fields.push('last_verify_status = ?'); values.push(data.lastVerifyStatus) }
+  if (data.lastVerifyError !== undefined) { fields.push('last_verify_error = ?'); values.push(data.lastVerifyError) }
 
   if (fields.length === 0) {
     return getCredentialById(id)!

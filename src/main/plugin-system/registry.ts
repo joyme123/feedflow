@@ -63,6 +63,10 @@ export function getAllMeta(): PluginMeta[] {
     const hasCredential = (p.configSchema ?? []).some(
       (f) => f.type === 'credential'
     )
+    // Whether the plugin's raw module exposes verifyCookie — drives the
+    // per-credential "验证" button in the credentials panel.
+    const rawModule = modules.get(p.meta.id)
+    const hasVerify = typeof rawModule?.verifyCookie === 'function'
     return {
       ...p.meta,
       // Default provider to plugin id so credentials can always be scoped,
@@ -74,7 +78,8 @@ export function getAllMeta(): PluginMeta[] {
       providerName: p.meta.providerName ?? p.meta.name,
       source: sources.get(p.meta.id) ?? 'builtin',
       credentialType: hasTokenField ? 'token' : 'cookie',
-      hasCredential
+      hasCredential,
+      hasVerify
     }
   })
 }

@@ -9,6 +9,8 @@ export interface CredentialSlice {
   addCredential: (input: AddCredentialInput) => Promise<Credential>
   updateCredential: (id: string, data: UpdateCredentialInput) => Promise<Credential>
   removeCredential: (id: string) => Promise<void>
+  /** 触发主进程异步校验已存储凭据，结果由主进程持久化后重新拉取列表 */
+  verifyCredential: (id: string) => Promise<{ supported: boolean; valid: boolean; error?: string }>
 }
 
 export const createCredentialSlice: StateCreator<CredentialSlice, [], [], CredentialSlice> = (set, get) => ({
@@ -36,5 +38,15 @@ export const createCredentialSlice: StateCreator<CredentialSlice, [], [], Creden
   removeCredential: async (id: string) => {
     await window.api.removeCredential(id)
     await get().loadCredentials()
+  },
+
+  verifyCredential: async (id: string) => {
+    const result = await window.api.verifyCredential(id) as {
+      supported: boolean
+      valid: boolean
+      error?: string
+    }
+    await get().loadCredentials()
+    return result
   }
 })

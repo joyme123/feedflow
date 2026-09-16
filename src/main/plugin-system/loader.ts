@@ -3,7 +3,7 @@ import { readdirSync, existsSync } from 'fs'
 import { app } from 'electron'
 import { createRequire } from 'module'
 import { register, has } from './registry'
-import type { FeedFlowPlugin } from '@shared/types/plugin'
+import { unwrapPlugin } from './normalize'
 import type { PluginSource } from '../database/queries/plugins'
 
 const PLUGIN_DIRS: { path: string; source: PluginSource }[] = [
@@ -45,7 +45,7 @@ export async function loadPlugins(): Promise<void> {
           const indexFile = pkg.main || 'plugin.js'
           const indexPath = join(entryDir, indexFile)
 
-          let pluginModule: { default?: FeedFlowPlugin | { default?: FeedFlowPlugin } }
+          let pluginModule: unknown
           try {
             pluginModule = await import(indexPath)
           } catch {
@@ -56,12 +56,9 @@ export async function loadPlugins(): Promise<void> {
           // CJS modules that do `module.exports = { default: plugin }` get wrapped
           // one level deeper when imported via ESM `import()`: mod.default.default.
           // Normalize to find the actual plugin object regardless of module format.
-          const plugin =
-            (pluginModule.default as { default?: FeedFlowPlugin })?.default ??
-            pluginModule.default ??
-            (pluginModule as FeedFlowPlugin)
+          const plugin = unwrapPlugin(pluginModule)
 
-          if (!plugin || typeof plugin.fetchItems !== 'function') {
+          if (!plugin) {
             console.warn(`[PluginLoader] Invalid plugin in ${entry.name}: missing fetchItems`)
             continue
           }

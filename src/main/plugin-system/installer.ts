@@ -4,7 +4,8 @@ import { app } from 'electron'
 import { createRequire } from 'module'
 import extract from 'extract-zip'
 import { register, has, get as getPlugin, unregister, getSource } from './registry'
-import type { FeedFlowPlugin, PluginMeta } from '@shared/types/plugin'
+import { unwrapPlugin } from './normalize'
+import type { PluginMeta } from '@shared/types/plugin'
 
 /**
  * Get the user plugins directory ({userData}/plugins).
@@ -121,7 +122,7 @@ export async function installPluginFromZip(zipPath: string): Promise<PluginMeta>
     // 4. Load & register the plugin
     const indexPath = join(targetDir, main)
 
-    let pluginModule: { default?: FeedFlowPlugin | { default?: FeedFlowPlugin } }
+    let pluginModule: unknown
     try {
       pluginModule = await import(indexPath)
     } catch {
@@ -129,12 +130,9 @@ export async function installPluginFromZip(zipPath: string): Promise<PluginMeta>
       pluginModule = pluginRequire(indexPath)
     }
 
-    const plugin =
-      (pluginModule.default as { default?: FeedFlowPlugin })?.default ??
-      pluginModule.default ??
-      (pluginModule as FeedFlowPlugin)
+    const plugin = unwrapPlugin(pluginModule)
 
-    if (!plugin || typeof plugin.fetchItems !== 'function') {
+    if (!plugin) {
       // Clean up the copied directory since the plugin is invalid.
       rmSync(targetDir, { recursive: true, force: true })
       throw new Error('插件无效：缺少 fetchItems 方法')

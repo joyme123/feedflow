@@ -64,6 +64,13 @@ const configSchema = [
     min: 1,
     max: 50,
     helpText: '单次刷新获取的微博数量'
+  },
+  {
+    key: 'useProxy',
+    label: '通过代理服务器访问',
+    type: 'boolean',
+    default: false,
+    helpText: '开启后该信息源的请求将通过「设置 → 网络」中配置的代理服务器发送'
   }
 ]
 

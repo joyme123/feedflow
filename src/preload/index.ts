@@ -25,6 +25,7 @@ const api = {
   removeCredential: (id: string) => ipcRenderer.invoke('credentials:remove', id),
   countCredentialReferences: (credentialId: string) =>
     ipcRenderer.invoke('credentials:count-references', { credentialId }),
+  verifyCredential: (id: string) => ipcRenderer.invoke('credentials:verify', { id }),
 
   // Weibo
   setWeiboCookie: (cookie: string) => ipcRenderer.invoke('set-weibo-cookie', cookie),
@@ -33,6 +34,9 @@ const api = {
   getSetting: (key: string) => ipcRenderer.invoke('settings:get', key),
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', { key, value }),
   getAllSettings: () => ipcRenderer.invoke('settings:get-all'),
+
+  // Proxy
+  detectSystemProxy: () => ipcRenderer.invoke('proxy:detect-system'),
 
   // Cookie Sync
   getCookieSyncStatus: () => ipcRenderer.invoke('cookie-sync:get-status'),

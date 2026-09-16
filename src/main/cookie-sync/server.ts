@@ -1,7 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { getSetting } from '../database/queries/settings'
 import * as credentialQueries from '../database/queries/credentials'
-import { getAll, getModule } from '../plugin-system/registry'
 import { buildProviderMaps, matchProvider, type ProviderInfo } from './domain-map'
 import { markExtensionHeartbeat, setServerRunning, getExtensionStatus, loadExtensionStatus } from './status'
 import { refreshMediaCookies } from '../media-cookies'
@@ -20,7 +19,6 @@ interface SyncResponse {
   success: boolean
   provider?: string
   action?: 'created' | 'updated'
-  verified?: boolean
   message?: string
   error?: string
 }
@@ -57,19 +55,6 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString('utf-8')
 }
 
-/** Find a plugin for a provider that supports cookie verification */
-function findVerifyPlugin(provider: string): { pluginId: string; verifyCookie: (cookie: string) => Promise<{ valid: boolean; error?: string }> } | null {
-  for (const plugin of getAll()) {
-    const p = plugin.meta.provider ?? plugin.meta.id
-    if (p !== provider) continue
-    const mod = getModule(plugin.meta.id)
-    if (mod && typeof mod.verifyCookie === 'function') {
-      return { pluginId: plugin.meta.id, verifyCookie: mod.verifyCookie as (cookie: string) => Promise<{ valid: boolean; error?: string }> }
-    }
-  }
-  return null
-}
-
 async function handleSync(req: IncomingMessage, res: ServerResponse): Promise<void> {
   try {
     const bodyStr = await readBody(req)
@@ -91,37 +76,25 @@ async function handleSync(req: IncomingMessage, res: ServerResponse): Promise<vo
       return
     }
 
-    // Verify cookie if the provider supports it
-    let verified = true
-    const verifyPlugin = findVerifyPlugin(provider)
-    if (verifyPlugin) {
-      const result = await verifyPlugin.verifyCookie(cookie)
-      console.log(`[CookieSync] verifyCookie for ${provider}: valid=${result.valid}${result.error ? `, error=${result.error}` : ''}`)
-      if (!result.valid) {
-        // Verification failed: reject write, record failure status on existing credential if any
-        const existing = credentialQueries.listCredentials(provider)[0]
-        if (existing) {
-          credentialQueries.updateCredential(existing.id, {
-            lastSyncStatus: 'failed',
-            lastSyncError: result.error ?? 'Cookie 验证失败',
-            lastSyncedAt: Date.now(),
-          })
-        }
-        sendJson(res, 200, { success: false, verified: false, provider, error: result.error ?? 'Cookie 验证失败' })
-        return
-      }
-    }
-
-    // One credential per provider: find existing, else create
+    // 同步只负责落库，不做校验。校验由用户在「设置 → 凭据」中按需触发
+    //（credentials:verify）；网络问题（如 ECONNRESET）不再阻断 Cookie 保存。
+    // Cookie 值更新后，上一次的校验结果作废（verify 三字段重置为 null）。
     const existing = credentialQueries.listCredentials(provider)[0]
     const now = Date.now()
     if (existing) {
+      // 扩展会因定时 resync / 域名下任意 cookie 变动而重复推送相同内容，
+      // 仅在 cookie 值真正变化时才作废旧的校验结果；否则保留 lastVerify*，
+      // 避免「已验证」徽章被周期性的重复同步悄悄清空。
+      const valueChanged = existing.value !== cookie
       credentialQueries.updateCredential(existing.id, {
         value: cookie,
         source: 'extension',
         lastSyncedAt: now,
         lastSyncStatus: 'success',
         lastSyncError: null,
+        ...(valueChanged
+          ? { lastVerifiedAt: null, lastVerifyStatus: null, lastVerifyError: null }
+          : {}),
       })
       console.log(`[CookieSync] Credential updated for ${provider}`)
     } else {
@@ -154,7 +127,7 @@ async function handleSync(req: IncomingMessage, res: ServerResponse): Promise<vo
     // 能成功同步 Cookie 说明扩展处于活跃状态，更新 lastSeen
     markExtensionHeartbeat()
 
-    sendJson(res, 200, { success: true, provider, action: existing ? 'updated' : 'created', verified, message: 'Cookie 已保存' })
+    sendJson(res, 200, { success: true, provider, action: existing ? 'updated' : 'created', message: 'Cookie 已保存' })
   } catch (err) {
     console.error('[CookieSync] /sync error:', err)
     sendJson(res, 500, { success: false, error: err instanceof Error ? err.message : String(err) })

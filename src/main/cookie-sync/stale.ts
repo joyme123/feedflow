@@ -4,8 +4,9 @@
  * 当某个 provider（weibo / x 等）的刷新因 Cookie 失效类错误失败时，
  * 在内存中标记该 provider 为 stale。cookie-sync 本地服务端通过
  * /heartbeat 响应把 stale 列表告诉 Chrome 扩展，扩展随即立即重同步
- * 浏览器中的最新 Cookie（必要时还会主动刷新 Cookie），同步验证成功后
- * 服务端清除标记，并自动重新拉取该 provider 的信息流，完成自愈闭环。
+ * 浏览器中的最新 Cookie（必要时还会主动刷新 Cookie），Cookie 经 /sync
+ * 成功落库后服务端清除标记（注意 /sync 只保存不校验），并自动重新拉取
+ * 该 provider 的信息流；若新 Cookie 仍失效，刷新会再次失败并重新标记。
  *
  * 不持久化：应用重启后标记自然清空，下次刷新失败会重新标记。
  */

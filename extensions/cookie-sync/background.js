@@ -5,12 +5,13 @@
 //   2. 定期重同步: 每 RESYNC_INTERVAL_MIN 分钟强制重读所有已授权域名的 cookie
 //      并推送，覆盖"App 关闭期间 cookie 轮换 / 轮换发生在安装扩展之前"等
 //      被动监听漏掉的场景
-//   3. 主动刷新兜底: 当服务端验证 cookie 失败（verified=false）时，后台打开
-//      一个隐藏标签页加载对应站点，触发服务端 Set-Cookie 轮换（如微博
-//      的 XSRF-TOKEN、SUB 续期），等待落地后重新读取并同步，然后关闭标签页
+//   3. 主动刷新兜底: 心跳响应中带 refreshProviders（App 侧抓取时检测到
+//      Cookie 失效）时，后台打开一个隐藏标签页加载对应站点，触发服务端
+//      Set-Cookie 轮换（如微博的 XSRF-TOKEN、SUB 续期），等待落地后重新
+//      读取并同步，然后关闭标签页
 //
-// 另外心跳（1 分钟）响应中若带 refreshProviders（App 侧检测到 Cookie 失效），
-// 会立即对相应 provider 重同步，实现失败→重同步→自愈的闭环。
+// 注意：/sync 只负责落库，不再校验 Cookie；校验由桌面端「设置 → 凭据」
+// 按需触发，网络问题不会再导致同步失败。
 
 const SERVER_URL = 'http://127.0.0.1:33940'
 const DEBOUNCE_MS = 5000
@@ -64,32 +65,26 @@ async function postSync(domain, cookieHeader) {
 
 /**
  * 同步单个域名的 cookie 到 FeedFlow。
- * 若服务端验证失败（verified=false，说明浏览器里的 cookie 本身也旧了），
- * 触发一次主动刷新（隐藏标签页加载站点触发 Set-Cookie 轮换）后重试。
+ * /sync 只落库不校验，因此这里只需读取并推送。
  */
 async function syncDomain(domain) {
   try {
     const cookies = await chrome.cookies.getAll({ domain })
     if (!cookies.length) return { success: false, reason: 'no-cookie' }
     const cookieHeader = cookies.map((c) => `${c.name}=${c.value}`).join('; ')
-    const result = await postSync(domain, cookieHeader)
-    if (result.success && result.verified === false) {
-      // Cookie 存在但服务端验证不通过 → 主动刷新一次再同步
-      await activeRefreshAndResync(domain)
-    }
-    return result
+    return await postSync(domain, cookieHeader)
   } catch (e) {
     return { success: false, reason: 'unreachable' }
   }
 }
 
-/** 对指定 provider 列表立即重同步（主域名） */
+/** 对指定 provider 列表立即主动刷新（隐藏标签页触发 Set-Cookie 轮换）并重同步 */
 async function syncProvidersFor(providerNames) {
   if (!providerNames || !providerNames.length) return
   const providers = await fetchProviders()
   for (const p of providers) {
     if (providerNames.includes(p.provider) && p.domains.length) {
-      await syncDomain(p.domains[0])
+      await activeRefreshAndResync(p.domains[0])
     }
   }
 }
@@ -117,7 +112,7 @@ async function sendHeartbeat() {
     })
     if (!res.ok) return
     const data = await res.json()
-    // App 侧检测到 Cookie 失效 → 立即重同步，完成自愈
+    // App 侧抓取时检测到 Cookie 失效 → 后台开标签页触发轮换并重同步
     if (Array.isArray(data.refreshProviders) && data.refreshProviders.length) {
       await syncProvidersFor(data.refreshProviders)
     }

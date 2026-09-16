@@ -32,7 +32,27 @@ function toUpdateInfo(info: { version: string; releaseNotes?: unknown }): {
  * - 检测到新版本时自动下载，下载完成后通知渲染进程，由用户决定何时重启安装
  */
 export function initAutoUpdater(): void {
-  // 开发环境不启用自动更新
+  // 渲染进程主动检查更新
+  // dev 模式下也注册（否则渲染端点击会报 "No handler registered"），但直接返回提示，
+  // 不做真实检查——dev 产物没有 app-update.yml，electron-updater 无法工作。
+  ipcMain.handle('updates:check', () => {
+    if (is.dev) return { devMode: true }
+    autoUpdater.checkForUpdates().catch((e) => {
+      sendToAllWindows('update:error', { message: (e as Error).message })
+    })
+    return { devMode: false }
+  })
+
+  // 渲染进程请求重启并安装更新（dev 下 no-op）
+  ipcMain.handle('updates:quit-and-install', () => {
+    if (is.dev) return
+    // 延迟退出，确保渲染进程有时间响应
+    setTimeout(() => {
+      autoUpdater.quitAndInstall(false, true)
+    }, 500)
+  })
+
+  // 开发环境不启用自动更新（事件监听、自动检查均无需注册）
   if (is.dev) return
 
   // 自动下载新版本（下载完成后再提示用户重启）
@@ -70,21 +90,6 @@ export function initAutoUpdater(): void {
 
   autoUpdater.on('error', (err: Error) => {
     sendToAllWindows('update:error', { message: err.message })
-  })
-
-  // 渲染进程主动检查更新
-  ipcMain.handle('updates:check', () => {
-    autoUpdater.checkForUpdates().catch((e) => {
-      sendToAllWindows('update:error', { message: (e as Error).message })
-    })
-  })
-
-  // 渲染进程请求重启并安装更新
-  ipcMain.handle('updates:quit-and-install', () => {
-    // 延迟退出，确保渲染进程有时间响应
-    setTimeout(() => {
-      autoUpdater.quitAndInstall(false, true)
-    }, 500)
   })
 
   // 启动后延迟一段时间再检查，避免与启动流程争抢资源

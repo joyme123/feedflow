@@ -4,6 +4,8 @@ import { listSources } from '../../database/queries/sources'
 import { get as getPlugin } from '../../plugin-system/registry'
 import { resolveCredentialFields } from '../../plugin-system/credentials'
 import { upsertItem } from '../../database/queries/items'
+import { runWithProxyContext } from '../../network/proxy-context'
+import { sourceUsesProxy } from '../../network/proxy-agent'
 import type { SourceConfig } from '@shared/types/plugin'
 import type { Item } from '@shared/types/item'
 import type {
@@ -226,11 +228,15 @@ export async function handleGetItem(params: GetItemParams): Promise<GetItemResul
   }
   config = resolveCredentialFields(config, source.pluginId)
 
+  const fetchItemDetail = plugin.fetchItemDetail.bind(plugin)
+
   // 带超时调用 fetchItemDetail
   try {
-    const result = await withTimeout(
-      plugin.fetchItemDetail(config, item.externalId),
-      EXPAND_TIMEOUT_MS
+    const result = await runWithProxyContext(sourceUsesProxy(plugin, config), () =>
+      withTimeout(
+        fetchItemDetail(config, item.externalId),
+        EXPAND_TIMEOUT_MS
+      )
     )
 
     if (result?.content?.text) {

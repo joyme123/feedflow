@@ -83,6 +83,13 @@ const configSchema = [
     max: 50,
     helpText:
       '单次刷新获取的主题数量。最新/热门主题模式由 API 固定返回约 20 条，此参数仅对按节点订阅模式有效。'
+  },
+  {
+    key: 'useProxy',
+    label: '通过代理服务器访问',
+    type: 'boolean',
+    default: false,
+    helpText: '开启后该信息源的请求将通过「设置 → 网络」中配置的代理服务器发送'
   }
 ]
 

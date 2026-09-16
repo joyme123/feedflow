@@ -185,6 +185,22 @@ export function initializeDatabase(): void {
     console.error('[Schema] credentials sync columns migration failed:', err)
   }
 
+  // Migration: separate async cookie-verification tracking columns.
+  // Sync (/sync endpoint) only saves cookies; verification is triggered
+  // independently from the credentials panel, so its state must not be
+  // conflated with last_sync_status.
+  // last_verified_at, last_verify_status ('success'|'failed'), last_verify_error
+  try {
+    const credCols = db.prepare("PRAGMA table_info(credentials)").all() as { name: string }[]
+    if (!credCols.some((c) => c.name === 'last_verified_at')) {
+      db.exec(`ALTER TABLE credentials ADD COLUMN last_verified_at INTEGER`)
+      db.exec(`ALTER TABLE credentials ADD COLUMN last_verify_status TEXT`)
+      db.exec(`ALTER TABLE credentials ADD COLUMN last_verify_error TEXT`)
+    }
+  } catch (err) {
+    console.error('[Schema] credentials verify columns migration failed:', err)
+  }
+
   // Migration: add read column to items table for read/unread tracking
   try {
     const itemCols = db.prepare("PRAGMA table_info(items)").all() as { name: string }[]
