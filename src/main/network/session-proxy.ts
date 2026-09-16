@@ -11,7 +11,16 @@ import { getProxyUrl, parseProxyUrl } from './proxy-agent'
 
 const BYPASS_RULES = '<local>;127.0.0.1;localhost;::1'
 
-/** 把代理 URL 转换为 Chromium proxyRules 字符串；不支持的协议返回 null */
+/**
+ * 把代理 URL 转换为 Chromium proxyRules 字符串；不支持的协议返回 null。
+ *
+ * 注意 Chromium 对 proxyRules 的解析：
+ *   - `socks5=host:port` / `socks4=host:port` 这类 scheme=host 写法会被
+ *     静默忽略（resolveProxy 回退 DIRECT，实测 Electron 44 如此）；
+ *     SOCKS 只有 URI 写法 `socks5://host:port` 生效，且域名由代理解析
+ *     （等价 socks5h，可规避本地 DNS 污染）。
+ *   - HTTP 代理则用 `http=...;https=...` 写法（已验证生效）。
+ */
 function toChromiumProxyRules(rawUrl: string): string | null {
   const url = parseProxyUrl(rawUrl)
   if (!url) return null
@@ -20,9 +29,8 @@ function toChromiumProxyRules(rawUrl: string): string | null {
   if (url.protocol === 'http:' || url.protocol === 'https:') {
     return `http=${hostPort};https=${hostPort}`
   }
-  // Chromium 仅支持 SOCKS5（SOCKS5 默认由代理解析 DNS，等价 socks5h）
   if (url.protocol === 'socks:' || url.protocol === 'socks5:' || url.protocol === 'socks5h:') {
-    return `socks5=${hostPort}`
+    return `socks5://${hostPort}`
   }
   // socks4 / socks4a：Chromium 不支持
   console.warn(`[Proxy] Chromium 媒体加载不支持 ${url.protocol} 代理，仅插件 API 请求会走该代理`)
