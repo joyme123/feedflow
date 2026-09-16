@@ -56,7 +56,8 @@ function enrichItems(items: Item[]): DisplayItem[] {
       publishedAt: item.publishedAt,
       fetchedAt: item.fetchedAt,
       metadata: item.metadata,
-      read: item.read === 1 || item.read === true,
+      // SQLite INTEGER 列经 better-sqlite3 返回 0/1，统一归一为 boolean
+      read: Boolean(item.read),
     }
   })
 }
