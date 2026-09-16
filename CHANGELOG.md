@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Electron 31 升级至 44：旧版 Electron 31.7.7 的 Apple 公证票据被撤销，在 macOS 26 上会被 XProtect 判定为恶意软件并移入废纸篓导致无法启动；同步将 better-sqlite3 升级至 13（N-API，适配新版 V8）
 
 ### Fixed
+- 修复 X 信息流图片被错误地以视频播放器展示的问题：X 图片 URL 带有 `:large` 尺寸后缀（如 `pbs.twimg.com/media/xxx.jpg:large`），渲染端按扩展名结尾判断图片类型时未识别，被当成非图片 URL 塞进 `<video>` 标签；判断前先去掉 Twitter 尺寸后缀，已存入数据库的旧条目无需重新拉取即可恢复
 - 开发模式下点击「检查更新」报 `No handler registered for 'updates:check'`：dev 下也注册更新相关 IPC，点击时明确提示"开发模式不检查更新"，不再抛错；生产环境行为不变
 
 ## [0.3.0] - 2026-09-16

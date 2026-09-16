@@ -95,7 +95,10 @@ export function TimelineItem({ item }: TimelineItemProps): JSX.Element {
   const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg']
   const isImageUrl = (url: string): boolean => {
     const lower = url.toLowerCase().split('?')[0]
-    if (IMAGE_EXTENSIONS.some((ext) => lower.endsWith(ext))) return true
+    // X 图片形如 https://pbs.twimg.com/media/xxx.jpg:large，
+    // 去掉末尾的尺寸后缀（:large/:orig/:small/:medium/:thumb 或 :1500x1500）再判扩展名
+    const withoutSizeSuffix = lower.replace(/:(thumb|small|medium|large|orig|\d+x\d+)$/, '')
+    if (IMAGE_EXTENSIONS.some((ext) => withoutSizeSuffix.endsWith(ext))) return true
     if (url.includes('upload.api.weibo.com/2/mss/msget')) return true
     if (url.includes('sinaimg.cn')) return true
     return false
