@@ -21,8 +21,8 @@ import type { Agent as HttpsAgent, ClientRequest } from 'node:http'
 import { HttpsProxyAgent } from 'https-proxy-agent'
 import { SocksProxyAgent } from 'socks-proxy-agent'
 import { getSetting } from '../database/queries/settings'
-import { getEnabledSources } from '../database/queries/sources'
-import { get } from '../plugin-system/registry'
+import { listSources } from '../database/queries/sources'
+import { get, getAll } from '../plugin-system/registry'
 import { isProxyCallContext } from './proxy-context'
 import type { FeedFlowPlugin, SourceConfig } from '@shared/types/plugin'
 
@@ -118,15 +118,26 @@ export function sourceUsesProxy(plugin: FeedFlowPlugin, config: SourceConfig | u
 }
 
 /**
- * 某 provider 下是否存在任一启用且开启代理的源。
- * 用于 Cookie 同步验证等只能拿到 provider、拿不到单个源配置的调用路径。
+ * 某 provider 下是否应走代理（provider 级调用：凭据验证、微博群组拉取等）。
+ *
+ * 判定顺序：
+ *   1. 代理未启用/未配置 → 一律 false（直连）；
+ *   2. 存在已启用且实际开启 useProxy 的同源信息源 → true；
+ *   3. 该 provider 下存在信息源但都不满足（已禁用或显式关闭代理）→ false；
+ *   4. 该 provider 下没有任何信息源（典型场景：只装了浏览器扩展、Cookie
+ *      自动同步出凭据，但用户尚未添加信息源）→ 取已注册插件 configSchema
+ *      中 useProxy 的默认值（X 关注流默认为 true），避免凭据验证被误判
+ *      为直连导致 read ECONNRESET。
  */
 export function providerUsesProxy(provider: string): boolean {
   if (!getProxyAgent()) return false
-  for (const source of getEnabledSources()) {
+  let sourceExists = false
+  for (const source of listSources()) {
     const plugin = get(source.pluginId)
     if (!plugin) continue
     if ((plugin.meta.provider ?? plugin.meta.id) !== provider) continue
+    sourceExists = true
+    if (!source.enabled) continue
     let config: SourceConfig = {}
     try {
       config = JSON.parse(source.config as unknown as string) as SourceConfig
@@ -134,6 +145,14 @@ export function providerUsesProxy(provider: string): boolean {
       config = {}
     }
     if (sourceUsesProxy(plugin, config)) return true
+  }
+  if (sourceExists) return false
+
+  // 该 provider 尚无信息源：以任一已注册同源插件的 schema 默认值为准
+  for (const plugin of getAll()) {
+    if ((plugin.meta.provider ?? plugin.meta.id) !== provider) continue
+    const field = (plugin.configSchema ?? []).find((f) => f.key === 'useProxy')
+    if (field?.default === true) return true
   }
   return false
 }
