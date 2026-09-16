@@ -12,6 +12,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 设置中支持配置 HTTP/HTTPS/SOCKS5 代理（「设置 → 网络」），保存后立即生效；各信息源可在配置中单独开关「通过代理服务器访问」（X 关注流默认开启），插件 API 请求与时间线图片/视频媒体均可走代理，本地服务（MCP、Cookie 同步）自动绕过。解决无翻墙环境下 X Cookie 同步验证超时、信息流无法刷新、图片视频加载失败的问题
+- 网络设置自动预填系统代理：支持 macOS / Windows / Linux 系统代理设置与 PAC 自动配置脚本，并兼容 HTTPS_PROXY 等环境变量；另提供「检测系统代理」按钮手动填充
+- 全新应用图标（macOS / Windows / Linux）及 Chrome 扩展图标
+
+### Changed
+- Electron 31 升级至 44：旧版 Electron 31.7.7 的 Apple 公证票据被撤销，在 macOS 26 上会被 XProtect 判定为恶意软件并移入废纸篓导致无法启动；同步将 better-sqlite3 升级至 13（N-API，适配新版 V8）
+
+### Fixed
+- 开发模式下点击「检查更新」报 `No handler registered for 'updates:check'`：dev 下也注册更新相关 IPC，点击时明确提示"开发模式不检查更新"，不再抛错；生产环境行为不变
+
 ## [0.3.0] - 2026-09-16
 
 ### Added

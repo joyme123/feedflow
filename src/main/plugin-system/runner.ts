@@ -6,6 +6,8 @@ import { upsertItem } from '../database/queries/items'
 import { insertLog } from '../database/queries/fetch_log'
 import { acquireRefreshLock, releaseRefreshLock } from './refresh-lock'
 import { clearProviderStale, markProviderStale } from '../cookie-sync/stale'
+import { runWithProxyContext } from '../network/proxy-context'
+import { sourceUsesProxy } from '../network/proxy-agent'
 import type { FeedFlowPlugin, SourceConfig } from '@shared/types/plugin'
 
 /** 解析插件所属的 provider（凭据共享维度），用于失效标记 */
@@ -62,7 +64,9 @@ export async function refreshSources(sourceIds?: string[]): Promise<number> {
       // 刷新时不传递游标，始终获取最新内容。
       // 游标（cursorValue）仅用于 loadOlderItems（加载更早内容），
       // 这样刷新时 upsertItem 会更新已有条目（修正作者名/头像等字段）。
-      const result = await plugin.fetchItems(config, undefined)
+      const result = await runWithProxyContext(sourceUsesProxy(plugin, config), () =>
+        plugin.fetchItems(config, undefined)
+      )
 
       // Notify: storing
       win?.webContents.send('refresh:progress', {

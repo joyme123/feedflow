@@ -5,6 +5,8 @@ import { insertLog } from '../../database/queries/fetch_log'
 import { get as getPlugin } from '../../plugin-system/registry'
 import { resolveCredentialFields } from '../../plugin-system/credentials'
 import { acquireRefreshLock, releaseRefreshLock } from '../../plugin-system/refresh-lock'
+import { runWithProxyContext } from '../../network/proxy-context'
+import { sourceUsesProxy } from '../../network/proxy-agent'
 import type { SourceConfig } from '@shared/types/plugin'
 import type { RefreshSourceParams, RefreshSourceResult, RefreshResultItem } from '../types'
 
@@ -67,9 +69,11 @@ export async function handleRefreshSource(params: RefreshSourceParams): Promise<
 
       try {
         // 带超时调用 fetchItems
-        const result = await withTimeout(
-          plugin.fetchItems(config, undefined),
-          timeout * 1000
+        const result = await runWithProxyContext(sourceUsesProxy(plugin, config), () =>
+          withTimeout(
+            plugin.fetchItems(config, undefined),
+            timeout * 1000
+          )
         )
 
         // Upsert 条目

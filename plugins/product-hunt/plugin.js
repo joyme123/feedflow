@@ -90,6 +90,13 @@ const configSchema = [
     max: 50,
     required: false,
     helpText: '仅在填写了 Token（GraphQL 模式）时生效。单次刷新获取的产品数量（1-50）。'
+  },
+  {
+    key: 'useProxy',
+    label: '通过代理服务器访问',
+    type: 'boolean',
+    default: false,
+    helpText: '开启后该信息源的请求将通过「设置 → 网络」中配置的代理服务器发送'
   }
 ]
 

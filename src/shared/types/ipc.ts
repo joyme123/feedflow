@@ -41,7 +41,7 @@ export interface IpcChannelMap {
   }
 
   // Auto-updates
-  'updates:check': { in: void; out: void }
+  'updates:check': { in: void; out: { devMode: boolean } }
   'updates:quit-and-install': { in: void; out: void }
 }
 

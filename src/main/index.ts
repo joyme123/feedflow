@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, session, ipcMain } from 'electron'
+import { app, BrowserWindow, shell, session, ipcMain, nativeImage } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initializeDatabase } from './database/schema'
@@ -8,6 +8,8 @@ import { loadPlugins } from './plugin-system/loader'
 import { startMcpServer } from './mcp-server'
 import { startCookieSyncServer } from './cookie-sync/server'
 import { initAutoUpdater } from './auto-updater'
+import { installHttpsProxyPatch, reloadProxyConfig } from './network/proxy-agent'
+import { applySessionProxy } from './network/session-proxy'
 import {
   X_VIDEO_DOMAINS,
   refreshMediaCookies,
@@ -24,6 +26,10 @@ function createWindow(): void {
     minHeight: 600,
     title: 'FeedFlow',
     show: false,
+    // Windows/Linux 开发模式下的窗口图标（macOS 走 dock/.icns）
+    ...(is.dev && process.platform !== 'darwin'
+      ? { icon: join(__dirname, '../../resources/icon.png') }
+      : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -65,10 +71,25 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  // 开发模式下手动设置 Dock 图标（打包后由 .icns 自动提供）
+  if (is.dev && process.platform === 'darwin') {
+    const devIcon = nativeImage.createFromPath(join(__dirname, '../../resources/icon.png'))
+    if (!devIcon.isEmpty()) app.dock?.setIcon(devIcon)
+  }
+
   // Initialize database
   initializeDatabase()
 
-  // 为微博图片/X视频请求加载 Cookie（启动时加载一次，后续可通过 refreshMediaCookies 刷新）
+  // 出站代理：先安装 node:https 补丁（必须在任何插件发请求前），再加载设置，
+  // 同时配置 Chromium session 代理（时间线图片/视频加载）
+  installHttpsProxyPatch()
+  reloadProxyConfig()
+  // 仅记录不抛出：session 代理失败不应阻断插件加载与窗口创建（Node 侧 agent 已同步重建，不受影响）
+  await applySessionProxy().catch((err) =>
+    console.error('[Proxy] applySessionProxy at startup failed:', err)
+  )
+
+  // 为微博图片/X视频请求加载 Cookie（启动时加载一次，后续可通过刷新媒体 Cookie 刷新）
   refreshMediaCookies()
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {

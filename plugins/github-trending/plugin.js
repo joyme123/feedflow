@@ -78,6 +78,13 @@ const configSchema = [
       { label: '本月', value: 'monthly' }
     ],
     helpText: 'Trending 的统计时间范围：今日、本周或本月。'
+  },
+  {
+    key: 'useProxy',
+    label: '通过代理服务器访问',
+    type: 'boolean',
+    default: false,
+    helpText: '开启后该信息源的请求将通过「设置 → 网络」中配置的代理服务器发送'
   }
 ]
 

@@ -7,6 +7,8 @@ import { markExtensionHeartbeat, setServerRunning, getExtensionStatus, loadExten
 import { refreshMediaCookies } from '../media-cookies'
 import { clearProviderStale, getStaleProviders } from './stale'
 import { refreshSourcesForProvider } from '../plugin-system/runner'
+import { runWithProxyContext } from '../network/proxy-context'
+import { providerUsesProxy } from '../network/proxy-agent'
 import type { CredentialSource, SyncStatus } from '@shared/types/credential'
 
 const DEFAULT_PORT = 33940
@@ -95,7 +97,9 @@ async function handleSync(req: IncomingMessage, res: ServerResponse): Promise<vo
     let verified = true
     const verifyPlugin = findVerifyPlugin(provider)
     if (verifyPlugin) {
-      const result = await verifyPlugin.verifyCookie(cookie)
+      const result = await runWithProxyContext(providerUsesProxy(provider), () =>
+        verifyPlugin.verifyCookie(cookie)
+      )
       console.log(`[CookieSync] verifyCookie for ${provider}: valid=${result.valid}${result.error ? `, error=${result.error}` : ''}`)
       if (!result.valid) {
         // Verification failed: reject write, record failure status on existing credential if any

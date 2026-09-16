@@ -109,6 +109,13 @@ const configSchema = [
     default: '',
     placeholder: '留空使用内置默认值',
     helpText: '用于内联展开长推文（点击"查看更多"时拉取完整正文）。Network 中过滤 "TweetResultByRestId"。'
+  },
+  {
+    key: 'useProxy',
+    label: '通过代理服务器访问',
+    type: 'boolean',
+    default: true,
+    helpText: 'X 在国内网络下通常需要代理。开启后该信息源的请求将通过「设置 → 网络」中配置的代理服务器发送（默认开启）。'
   }
 ]
 

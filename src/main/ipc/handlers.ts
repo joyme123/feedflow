@@ -10,6 +10,10 @@ import { upsertItem } from '../database/queries/items'
 import { updateSource, getEnabledSources } from '../database/queries/sources'
 import { getExtensionStatus } from '../cookie-sync/server'
 import { installPluginFromZip, uninstallPlugin } from '../plugin-system/installer'
+import { runWithProxyContext } from '../network/proxy-context'
+import { providerUsesProxy, reloadProxyConfig, sourceUsesProxy } from '../network/proxy-agent'
+import { applySessionProxy } from '../network/session-proxy'
+import { detectSystemProxy } from '../network/detect'
 import type { AddSourceInput } from '@shared/types/source'
 import type { TimelineListParams, DisplayItem, Item } from '@shared/types/item'
 import type { SourceConfig } from '@shared/types/plugin'
@@ -96,7 +100,9 @@ export function registerIpcHandlers(): void {
       throw new Error(`Plugin ${pluginId} does not support cookie verification`)
     }
     const verifyCookie = mod.verifyCookie as (cookie: string) => Promise<{ valid: boolean; uid?: string; screenName?: string; error?: string }>
-    return await verifyCookie(cookie)
+    const plugin = getPlugin(pluginId)
+    const provider = plugin?.meta.provider ?? pluginId
+    return await runWithProxyContext(providerUsesProxy(provider), () => verifyCookie(cookie))
   })
 
   ipcMain.handle('plugins:list-groups', async (_e, { pluginId, credentialId }: { pluginId: string; credentialId: string }) => {
@@ -110,7 +116,9 @@ export function registerIpcHandlers(): void {
       throw new Error('Credential not found')
     }
     const listGroups = mod.listGroups as (cookie: string) => Promise<{ label: string; value: string }[]>
-    return await listGroups(cred.value)
+    const plugin = getPlugin(pluginId)
+    const provider = plugin?.meta.provider ?? pluginId
+    return await runWithProxyContext(providerUsesProxy(provider), () => listGroups(cred.value))
   })
 
   // ---- Plugin install / uninstall ----
@@ -199,7 +207,9 @@ export function registerIpcHandlers(): void {
 
       // 使用 maxId 游标加载更早的微博
       const cursor = JSON.stringify({ maxId })
-      const result = await plugin.fetchItems(config, cursor)
+      const result = await runWithProxyContext(sourceUsesProxy(plugin, config), () =>
+        plugin.fetchItems(config, cursor)
+      )
 
       for (const item of result.items) {
         upsertItem(source.id, source.pluginId, item)
@@ -276,8 +286,12 @@ export function registerIpcHandlers(): void {
     config = resolveCredentialFields(config, source.pluginId)
     console.log('[IPC] getItemDetail: calling plugin.fetchItemDetail, config keys=', Object.keys(config))
 
+    const fetchItemDetail = plugin.fetchItemDetail.bind(plugin)
+
     try {
-      const result = await plugin.fetchItemDetail(config, item.externalId)
+      const result = await runWithProxyContext(sourceUsesProxy(plugin, config), () =>
+        fetchItemDetail(config, item.externalId)
+      )
       console.log('[IPC] getItemDetail: plugin returned, content.text length=', result?.content?.text?.length)
       return result
     } catch (err) {
@@ -311,12 +325,28 @@ export function registerIpcHandlers(): void {
     return settingQueries.getSetting(key)
   })
 
-  ipcMain.handle('settings:set', (_e, { key, value }: { key: string; value: string }) => {
+  ipcMain.handle('settings:set', async (_e, { key, value }: { key: string; value: string }) => {
     settingQueries.setSetting(key, value)
+    // 代理设置变更：立即重建 Node 侧 agent 并刷新 Chromium session 代理，无需重启。
+    // Node 侧 agent 同步重建不会失败；session.setProxy 失败时把错误回传给 UI。
+    if (key.startsWith('proxy.')) {
+      reloadProxyConfig()
+      try {
+        await applySessionProxy()
+      } catch (err) {
+        return { proxyMediaError: err instanceof Error ? err.message : String(err) }
+      }
+    }
+    return { proxyMediaError: null }
   })
 
   ipcMain.handle('settings:get-all', () => {
     return settingQueries.getAllSettings()
+  })
+
+  // ---- Proxy ----
+  ipcMain.handle('proxy:detect-system', async () => {
+    return await detectSystemProxy()
   })
 
   // ---- Cookie Sync ----

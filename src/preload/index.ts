@@ -34,6 +34,9 @@ const api = {
   setSetting: (key: string, value: string) => ipcRenderer.invoke('settings:set', { key, value }),
   getAllSettings: () => ipcRenderer.invoke('settings:get-all'),
 
+  // Proxy
+  detectSystemProxy: () => ipcRenderer.invoke('proxy:detect-system'),
+
   // Cookie Sync
   getCookieSyncStatus: () => ipcRenderer.invoke('cookie-sync:get-status'),
 

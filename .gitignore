@@ -5,5 +5,10 @@ dist/
 *.log
 plugins-community/
 
+# 编辑器临时文件（vim/neovim 交换文件等）
+*.swp
+*.swo
+*~
+
 # Claude Code local (machine-specific) settings
 .claude/settings.local.json

@@ -199,10 +199,12 @@ export function SourceConfigForm({ schema, onSubmit, submitting, pluginId, onDyn
     <form className={styles.form} onSubmit={handleSubmit}>
       {schema.map((field) => (
         <div key={field.key} className={styles.field}>
-          <label className={styles.label}>
-            {field.label}
-            {field.required && <span className={styles.required}> *</span>}
-          </label>
+          {field.type !== 'boolean' && (
+            <label className={styles.label}>
+              {field.label}
+              {field.required && <span className={styles.required}> *</span>}
+            </label>
+          )}
 
           {field.type === 'credential' && (
             <div>
@@ -358,7 +360,7 @@ export function SourceConfigForm({ schema, onSubmit, submitting, pluginId, onDyn
                 checked={(values[field.key] as boolean) ?? false}
                 onChange={(e) => handleChange(field.key, e.target.checked)}
               />
-              <span>启用</span>
+              <span>{field.label}</span>
             </label>
           )}
 

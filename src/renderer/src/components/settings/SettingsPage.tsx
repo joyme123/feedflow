@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { CredentialsPanel } from '../credentials/CredentialsPanel'
 import { PluginList } from '../plugins/PluginList'
 import { McpPanel } from './McpPanel'
+import { NetworkPanel } from './NetworkPanel'
 import { AboutPanel } from './AboutPanel'
 import styles from './SettingsPage.module.css'
 
@@ -10,7 +11,7 @@ interface SettingsPageProps {
   onClose: () => void
 }
 
-type TabId = 'credentials' | 'plugins' | 'mcp' | 'about'
+type TabId = 'credentials' | 'plugins' | 'network' | 'mcp' | 'about'
 
 interface Tab {
   id: TabId
@@ -37,6 +38,14 @@ const TABS: Tab[] = [
     title: '插件',
     description: '插件放在 plugins/ 目录下即可自动加载',
     content: <PluginList />
+  },
+  {
+    id: 'network',
+    label: '网络',
+    icon: '🌐',
+    title: '网络代理',
+    description: '配置 HTTP/HTTPS/SOCKS 代理，供需要代理的信息源及媒体加载使用',
+    content: <NetworkPanel />
   },
   {
     id: 'mcp',
