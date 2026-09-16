@@ -23,7 +23,8 @@ export function CredentialsPanel(): JSX.Element {
     loadPlugins,
     addCredential,
     updateCredential,
-    removeCredential
+    removeCredential,
+    verifyCredential
   } = useStore()
 
   const [filterProvider, setFilterProvider] = useState<string>('all')
@@ -34,6 +35,8 @@ export function CredentialsPanel(): JSX.Element {
   const [verifyError, setVerifyError] = useState<string | null>(null)
   const [verifySuccess, setVerifySuccess] = useState<{ uid?: string; screenName?: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  // 正在异步校验的凭据 id 列表（校验态仅存在于 UI，不持久化）
+  const [verifyingIds, setVerifyingIds] = useState<string[]>([])
   const [extStatus, setExtStatus] = useState<ExtensionStatus>({
     status: 'unknown',
     lastSeen: null,
@@ -63,7 +66,7 @@ export function CredentialsPanel(): JSX.Element {
     const seen = new Set<string>()
     const list: { id: string; label: string; credentialType: 'cookie' | 'token' }[] = []
     for (const p of plugins) {
-      const id = p.provider
+      const id = p.provider ?? p.id
       if (seen.has(id)) continue
       if (!p.hasCredential) continue
       seen.add(id)
@@ -97,6 +100,10 @@ export function CredentialsPanel(): JSX.Element {
   // Pick any plugin of the given provider to delegate cookie verification.
   const pluginIdForProvider = (provider: string): string | undefined =>
     plugins.find((p) => p.provider === provider)?.id
+
+  // 该 provider 是否存在支持 verifyCookie 的插件（决定卡片上是否显示「验证」按钮）
+  const providerCanVerify = (provider: string): boolean =>
+    plugins.some((p) => p.provider === provider && p.hasVerify)
 
   const resetForm = () => {
     setForm(EMPTY_FORM)
@@ -166,12 +173,26 @@ export function CredentialsPanel(): JSX.Element {
     }
     setSaving(true)
     try {
-      const extra: Record<string, unknown> = {}
-      if (verifySuccess?.uid) extra.uid = verifySuccess.uid
-      if (verifySuccess?.screenName) extra.screenName = verifySuccess.screenName
       if (editingId) {
-        await updateCredential(editingId, { name: form.name.trim(), value: form.value, extra })
+        const existing = credentials.find((c) => c.id === editingId)
+        // 保留 extra 中已有字段，合并本次表单验证得到的 uid/screenName
+        const mergedExtra: Record<string, unknown> = { ...(existing?.extra ?? {}) }
+        if (verifySuccess?.uid) mergedExtra.uid = verifySuccess.uid
+        if (verifySuccess?.screenName) mergedExtra.screenName = verifySuccess.screenName
+        // Cookie 值一旦改变，上一次的校验结果作废
+        const valueChanged = existing?.value !== form.value
+        await updateCredential(editingId, {
+          name: form.name.trim(),
+          value: form.value,
+          extra: mergedExtra,
+          ...(valueChanged
+            ? { lastVerifiedAt: null, lastVerifyStatus: null, lastVerifyError: null }
+            : {})
+        })
       } else {
+        const extra: Record<string, unknown> = {}
+        if (verifySuccess?.uid) extra.uid = verifySuccess.uid
+        if (verifySuccess?.screenName) extra.screenName = verifySuccess.screenName
         await addCredential({ provider, name: form.name.trim(), value: form.value, extra })
       }
       resetForm()
@@ -190,6 +211,57 @@ export function CredentialsPanel(): JSX.Element {
     if (window.confirm(msg)) {
       await removeCredential(cred.id)
     }
+  }
+
+  // 卡片级异步校验：主进程完成网络验证并持久化结果，store 会重新拉取列表
+  const handleVerifyCredential = async (cred: Credential) => {
+    setVerifyingIds((ids) => [...ids, cred.id])
+    try {
+      const result = await verifyCredential(cred.id)
+      if (!result.supported) {
+        window.alert('该凭据不支持校验')
+      }
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : String(err))
+    } finally {
+      setVerifyingIds((ids) => ids.filter((id) => id !== cred.id))
+    }
+  }
+
+  // 卡片上的校验状态徽章：未验证 / 验证中 / 已验证 / 验证失败（悬浮显示报错）
+  const renderVerifyBadge = (cred: Credential, isVerifying: boolean) => {
+    if (!providerCanVerify(cred.provider)) return null
+    if (isVerifying) {
+      return <span className={`${styles.verifyBadge} ${styles.pending}`}>验证中…</span>
+    }
+    if (cred.lastVerifyStatus === 'success') {
+      return (
+        <span
+          className={`${styles.verifyBadge} ${styles.ok}`}
+          title={cred.lastVerifiedAt ? `上次验证 ${timeAgo(cred.lastVerifiedAt)}` : '已验证'}
+        >
+          ✓ 已验证
+        </span>
+      )
+    }
+    if (cred.lastVerifyStatus === 'failed') {
+      return (
+        <span
+          className={`${styles.verifyBadge} ${styles.err}`}
+          title={cred.lastVerifyError ?? '验证失败'}
+        >
+          ✗ 验证失败
+        </span>
+      )
+    }
+    return (
+      <span
+        className={`${styles.verifyBadge} ${styles.muted}`}
+        title="尚未验证，点击右侧「验证」按钮"
+      >
+        未验证
+      </span>
+    )
   }
 
   const filtered = filterProvider === 'all'
@@ -286,7 +358,9 @@ export function CredentialsPanel(): JSX.Element {
         {filtered.length === 0 && (
           <p className={styles.empty}>暂无凭据{filterProvider === 'all' ? '' : '（该服务提供方暂无凭据）'}</p>
         )}
-        {filtered.map((cred) => (
+        {filtered.map((cred) => {
+          const isVerifying = verifyingIds.includes(cred.id)
+          return (
           <div key={cred.id} className={styles.credCard}>
             <div className={styles.credInfo}>
               <span className={styles.credName}>
@@ -294,16 +368,26 @@ export function CredentialsPanel(): JSX.Element {
                 {cred.source === 'extension' && (
                   <span className={styles.syncBadge} title="由扩展自动同步维护">🔄 自动同步</span>
                 )}
+                {renderVerifyBadge(cred, isVerifying)}
               </span>
               <span className={styles.credMeta}>
                 {providerLabel(cred.provider)}
                 {cred.extra?.screenName ? ` · @${String(cred.extra.screenName)}` : ''}
                 {cred.extra?.uid ? ` (UID: ${String(cred.extra.uid)})` : ''}
                 {cred.lastSyncedAt && ` · 上次同步 ${timeAgo(cred.lastSyncedAt)}`}
-                {cred.lastSyncStatus === 'failed' && cred.lastSyncError && ` · 同步失败: ${cred.lastSyncError}`}
               </span>
             </div>
             <div className={styles.credActions}>
+              {providerCanVerify(cred.provider) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleVerifyCredential(cred)}
+                  disabled={isVerifying}
+                >
+                  {isVerifying ? '验证中...' : '验证'}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -316,7 +400,8 @@ export function CredentialsPanel(): JSX.Element {
               <Button variant="danger" size="sm" onClick={() => handleDelete(cred)}>删除</Button>
             </div>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

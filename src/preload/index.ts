@@ -25,6 +25,7 @@ const api = {
   removeCredential: (id: string) => ipcRenderer.invoke('credentials:remove', id),
   countCredentialReferences: (credentialId: string) =>
     ipcRenderer.invoke('credentials:count-references', { credentialId }),
+  verifyCredential: (id: string) => ipcRenderer.invoke('credentials:verify', { id }),
 
   // Weibo
   setWeiboCookie: (cookie: string) => ipcRenderer.invoke('set-weibo-cookie', cookie),

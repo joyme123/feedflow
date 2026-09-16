@@ -11,6 +11,11 @@ export type CredentialSource = 'manual' | 'extension'
 /** Result of the last cookie sync attempt for a credential */
 export type SyncStatus = 'success' | 'failed'
 
+/** Result of the last explicit credential verification (credentials panel).
+ *  Verification is independent of sync: a synced cookie is saved first and
+ *  verified afterwards on demand. */
+export type VerifyStatus = 'success' | 'failed'
+
 /** A stored credential (e.g. a cookie) scoped to a service provider.
  *  Multiple plugins of the same provider (e.g. 微博关注流 + 微博群聊)
  *  can share the same credential. */
@@ -31,6 +36,13 @@ export interface Credential {
   lastSyncStatus: SyncStatus | null
   /** Error message from the last failed sync, or null */
   lastSyncError: string | null
+  /** Timestamp (ms epoch) of the last explicit verification, or null */
+  lastVerifiedAt: number | null
+  /** Result of the last explicit verification, or null if never verified.
+   *  Reset to null whenever the credential value changes. */
+  lastVerifyStatus: VerifyStatus | null
+  /** Error message from the last failed verification, or null */
+  lastVerifyError: string | null
 }
 
 /** Input for creating a new credential */
@@ -54,4 +66,7 @@ export interface UpdateCredentialInput {
   lastSyncedAt?: number | null
   lastSyncStatus?: SyncStatus | null
   lastSyncError?: string | null
+  lastVerifiedAt?: number | null
+  lastVerifyStatus?: VerifyStatus | null
+  lastVerifyError?: string | null
 }

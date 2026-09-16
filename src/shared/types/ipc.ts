@@ -23,6 +23,10 @@ export interface IpcChannelMap {
   'credentials:update': { in: { id: string; data: UpdateCredentialInput }; out: Credential }
   'credentials:remove': { in: string; out: void }
   'credentials:count-references': { in: { credentialId: string }; out: { count: number } }
+  'credentials:verify': {
+    in: { id: string }
+    out: { supported: boolean; valid: boolean; uid?: string; screenName?: string; error?: string }
+  }
 
   'timeline:list': { in: TimelineListParams; out: { items: Item[]; hasMore: boolean; nextCursor: string | null } }
   'timeline:refresh': { in: { sourceIds?: string[] }; out: { totalFetched: number } }

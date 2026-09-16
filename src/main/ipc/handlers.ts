@@ -6,6 +6,7 @@ import * as settingQueries from '../database/queries/settings'
 import { getAllMeta, getAll, get as getPlugin, getModule } from '../plugin-system/registry'
 import { refreshSources } from '../plugin-system/runner'
 import { resolveCredentialFields } from '../plugin-system/credentials'
+import { verifyCredentialById } from '../plugin-system/verify'
 import { upsertItem } from '../database/queries/items'
 import { updateSource, getEnabledSources } from '../database/queries/sources'
 import { getExtensionStatus } from '../cookie-sync/server'
@@ -160,6 +161,11 @@ export function registerIpcHandlers(): void {
   ipcMain.handle('credentials:count-references', (_e, { credentialId }: { credentialId: string }) => {
     const count = credentialQueries.countSourcesByCredentialId(credentialId)
     return { count }
+  })
+
+  // 异步校验已存储凭据：结果（含错误原因）由主进程持久化到凭据上
+  ipcMain.handle('credentials:verify', (_e, { id }: { id: string }) => {
+    return verifyCredentialById(id)
   })
 
   // ---- Timeline ----

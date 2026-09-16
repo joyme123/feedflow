@@ -57,6 +57,12 @@ export interface PluginMeta {
    * Determined automatically from configSchema.
    */
   hasCredential?: boolean
+  /**
+   * Whether any plugin of this provider exposes a verifyCookie function in its
+   * module. Determines whether the credentials panel shows a "验证" button.
+   * Determined automatically from the loaded module.
+   */
+  hasVerify?: boolean
 }
 
 /** A single configuration field rendered as a form input */
