@@ -3,6 +3,17 @@ productName: FeedFlow
 directories:
   buildResources: resources
   output: dist
+# better-sqlite3@13 已迁移到 N-API：预编译的 .node 直接随 npm 包发布
+# （node_modules/better-sqlite3/prebuilds/<platform>-<arch>.node），加载器按
+# process.platform/arch 直接取用，无需再按 Electron ABI 重编译。
+# electron-builder 24.x 不识别该布局，默认 npmRebuild=true 时会发现 binding.gyp
+# 就走 node-gyp 源码编译，在 Windows runner（VS 2026 + 旧 node-gyp）上会失败。
+npmRebuild: false
+# npmRebuild: false 后 electron-builder 不再自动探测原生模块，需显式声明
+# asarUnpack，让 better-sqlite3 随包的预编译 .node 以物理文件形式存在
+# （Electron 从 asar 内 dlopen 原生模块依赖临时目录解压，Windows 上不稳妥）。
+asarUnpack:
+  - "**/node_modules/better-sqlite3/prebuilds/*.node"
 files:
   - out/**/*
   - plugins/**/*
@@ -18,6 +29,12 @@ mac:
   target:
     - dmg
     - zip
+  # better-sqlite3 随包发布全平台 prebuilds，剔除其余平台文件
+  # （mac 矩阵含 arm64/x64 两个任务，两个 darwin 文件都保留）
+  files:
+    - "!**/node_modules/better-sqlite3/prebuilds/linux-*.node"
+    - "!**/node_modules/better-sqlite3/prebuilds/linuxmusl-*.node"
+    - "!**/node_modules/better-sqlite3/prebuilds/win32-*.node"
   # ---- 代码签名 ----
   # Developer ID Application 证书通过 CSC_LINK 环境变量注入（CI 中由 release.yml 准备），
   # 本地构建时若钥匙串中有匹配证书也会自动使用。不设置 identity 字段即可自动发现证书。
@@ -34,7 +51,19 @@ mac:
 win:
   target:
     - nsis
+  # win 矩阵只构建 x64
+  files:
+    - "!**/node_modules/better-sqlite3/prebuilds/darwin-*.node"
+    - "!**/node_modules/better-sqlite3/prebuilds/linux-*.node"
+    - "!**/node_modules/better-sqlite3/prebuilds/linuxmusl-*.node"
+    - "!**/node_modules/better-sqlite3/prebuilds/win32-arm64.node"
 linux:
   target:
     - AppImage
     - deb
+  # linux 矩阵只构建 x64；官方 Electron 基于 glibc，不含 linuxmusl-*
+  files:
+    - "!**/node_modules/better-sqlite3/prebuilds/darwin-*.node"
+    - "!**/node_modules/better-sqlite3/prebuilds/linux-arm64.node"
+    - "!**/node_modules/better-sqlite3/prebuilds/linuxmusl-*.node"
+    - "!**/node_modules/better-sqlite3/prebuilds/win32-*.node"

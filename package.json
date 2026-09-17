@@ -19,8 +19,7 @@
     "package:win": "electron-vite build && electron-builder --win",
     "package:linux": "electron-vite build && electron-builder --linux",
     "package:extension": "node scripts/package-extension.mjs",
-    "publish:extension": "node scripts/publish-chrome-web-store.mjs",
-    "postinstall": "electron-builder install-app-deps"
+    "publish:extension": "node scripts/publish-chrome-web-store.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

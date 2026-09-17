@@ -62,7 +62,7 @@ Extension source and development setup live in
 ## Getting Started
 
 ```bash
-# install dependencies (also runs electron-builder install-app-deps)
+# install dependencies
 npm install
 
 # start dev server with HMR
