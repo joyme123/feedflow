@@ -115,7 +115,10 @@ app.whenReady().then(async () => {
       }
     } else if (url.includes('sinaimg.cn') || url.includes('sina.com.cn') || url.includes('weibo.com')) {
       details.requestHeaders['Referer'] = 'https://weibo.com/'
-    } else if (X_VIDEO_DOMAINS.some((d) => url.includes(d))) {
+    // 注意：不要对 media 类型的请求修改请求头 —— 在 Electron 31 / Windows 上，
+    // 通过 webRequest 给 <video> 的媒体请求注入 Referer/Cookie 会导致主进程原生崩溃
+    // （crashpad 都无法捕获）。X 视频 URL 本身带签名参数可直接播放，无需注入。
+    } else if (details.resourceType !== 'media' && X_VIDEO_DOMAINS.some((d) => url.includes(d))) {
       // X 视频 CDN 校验 Referer 和 Cookie，否则返回 403/404 导致视频黑屏
       details.requestHeaders['Referer'] = 'https://x.com/'
       let cookie = getXCookie()
