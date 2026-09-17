@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, session, ipcMain, nativeImage } from 'electron'
+import { app, BrowserWindow, shell, session, ipcMain, nativeImage, Menu } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import { initializeDatabase } from './database/schema'
@@ -17,6 +17,27 @@ import {
   getXCookie,
   setWeiboCookies,
 } from './media-cookies'
+
+/**
+ * dev 下 macOS safeStorage 的 Keychain 条目（"<name> Safe Storage"）和 userData
+ * 目录都按 app.getName()（小写 feedflow）区分，绝不能 setName/加 productName，
+ * 否则历史凭据全部无法解密。Dock 名由 scripts/prepare-dev-electron.mjs 改名的
+ * bundle 提供；这里只把默认菜单/关于面板的显示文字本地化为 FeedFlow。
+ * 打包后 getName() 直接是 Info.plist 中的 FeedFlow，无需处理。
+ */
+function localizeDevMenu(): void {
+  if (!is.dev || process.platform !== 'darwin') return
+  const menu = Menu.getApplicationMenu()
+  if (!menu) return
+  const appMenuItem = menu.items[0]
+  if (appMenuItem) {
+    ;(appMenuItem as { label: string }).label = 'FeedFlow'
+    const aboutItem = appMenuItem.submenu?.items[0]
+    if (aboutItem) aboutItem.label = 'About FeedFlow'
+    Menu.setApplicationMenu(menu)
+  }
+  app.setAboutPanelOptions({ applicationName: 'FeedFlow' })
+}
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -71,6 +92,8 @@ function createWindow(): void {
 }
 
 app.whenReady().then(async () => {
+  localizeDevMenu()
+
   // 开发模式下手动设置 Dock 图标（打包后由 .icns 自动提供）
   if (is.dev && process.platform === 'darwin') {
     const devIcon = nativeImage.createFromPath(join(__dirname, '../../resources/icon.png'))
