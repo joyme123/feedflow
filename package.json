@@ -12,7 +12,7 @@
     "url": "https://github.com/joyme123/feedflow.git"
   },
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/dev.mjs",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "package:mac": "electron-vite build && electron-builder --mac",
