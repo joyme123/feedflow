@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-17
+
 ### Added
 - 设置中支持配置 HTTP/HTTPS/SOCKS5 代理（「设置 → 网络」），保存后立即生效；各信息源可在配置中单独开关「通过代理服务器访问」（X 关注流默认开启），插件 API 请求与时间线图片/视频媒体均可走代理，本地服务（MCP、Cookie 同步）自动绕过。解决无翻墙环境下 X Cookie 同步验证超时、信息流无法刷新、图片视频加载失败的问题
 - 网络设置自动预填系统代理：支持 macOS / Windows / Linux 系统代理设置与 PAC 自动配置脚本，并兼容 HTTPS_PROXY 等环境变量；另提供「检测系统代理」按钮手动填充
@@ -19,9 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Electron 31 升级至 44：旧版 Electron 31.7.7 的 Apple 公证票据被撤销，在 macOS 26 上会被 XProtect 判定为恶意软件并移入废纸篓导致无法启动；同步将 better-sqlite3 升级至 13（N-API，适配新版 V8）
+- Chrome 扩展版本 1.2.0 → 1.3.0：Cookie 同步与校验解耦，/sync 只落库不再校验，避免网络问题导致同步失败；心跳收到 refreshProviders 时直接后台开隐藏标签页触发站点 Cookie 轮换并重同步
 
 ### Fixed
 - 修复 X 信息流图片被错误地以视频播放器展示的问题：X 图片 URL 带有 `:large` 尺寸后缀（如 `pbs.twimg.com/media/xxx.jpg:large`），渲染端按扩展名结尾判断图片类型时未识别，被当成非图片 URL 塞进 `<video>` 标签；判断前先去掉 Twitter 尺寸后缀，已存入数据库的旧条目无需重新拉取即可恢复
+- 修复粘贴凭据带入的 `\r\n` 等控制字符导致主进程崩溃：Cookie 经 textarea 粘贴常以 CRLF 结尾，注入 Cookie 请求头时触发旧版 Electron（未含 electron/electron#51340 修复）中 Chromium `net::HttpRequestHeaders::SetHeader` 的 CHECK fatal crash；解密加载时统一清洗 CR/LF，覆盖微博与 X 两条注入路径
 - 开发模式下点击「检查更新」报 `No handler registered for 'updates:check'`：dev 下也注册更新相关 IPC，点击时明确提示"开发模式不检查更新"，不再抛错；生产环境行为不变
 
 ## [0.3.0] - 2026-09-16
@@ -81,7 +85,8 @@ First stable release.
 - 微博 group chat image loading
 - Various `provider` migration and default-value issues
 
-[Unreleased]: https://github.com/joyme123/feedflow/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/joyme123/feedflow/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/joyme123/feedflow/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/joyme123/feedflow/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/joyme123/feedflow/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/joyme123/feedflow/releases/tag/v0.1.0
