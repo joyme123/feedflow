@@ -32,7 +32,8 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        # 同 release.yml：better-sqlite3 随包 N-API 预编译文件无需 node-gyp
+        run: npm ci --ignore-scripts
 
       # 类型检查：electron-vite 用 esbuild 转译不做类型检查，单独跑 tsc
       - name: Type check

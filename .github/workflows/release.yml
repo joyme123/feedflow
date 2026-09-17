@@ -135,9 +135,23 @@ jobs:
             libfuse2
 
       - name: Install dependencies
-        run: npm ci
+        # --ignore-scripts：better-sqlite3@13 随包发布 N-API 预编译 .node、无
+        # install 脚本，但 npm 只要发现包内有 binding.gyp 就会自动执行
+        # node-gyp rebuild（lockfile 不保存 gypfile:false，无法关闭该探测），
+        # 在 windows-2025 runner（VS 2026 需 node-gyp >=13，npm 内置仅 11.x）
+        # 上必然失败。依赖树中其余 install 脚本（esbuild 校验、fsevents 编译）
+        # 均为可选：esbuild 二进制来自 @esbuild/<platform> 可选依赖，fsevents
+        # 缺失时 chokidar 回退轮询；electron 44 已移除 postinstall，下一步显式安装。
+        run: npm ci --ignore-scripts
         env:
-          # 让 better-sqlite3 等原生模块按目标 arch 拉取/编译预构建产物
+          # 让原生模块的可选依赖按目标 arch 拉取
+          npm_config_arch: ${{ matrix.arch }}
+
+      - name: Install Electron binary
+        # Electron 44 不再通过 postinstall 自动下载二进制（见 electron PR #48184），
+        # --ignore-scripts 后需显式执行其安装脚本；@electron/get 读取 npm_config_arch。
+        run: node node_modules/electron/install.js
+        env:
           npm_config_arch: ${{ matrix.arch }}
 
       # ---- macOS：准备代码签名证书与公证凭据 ----
