@@ -8,6 +8,16 @@ export const WEIBO_DOMAINS = ['.upload.api.weibo.com', '.weibo.com', '.sinaimg.c
 /** X (Twitter) 视频 CDN 域名，请求视频时需要携带 X Cookie 才能播放 */
 export const X_VIDEO_DOMAINS = ['video.twimg.com']
 
+/**
+ * 清洗用户粘贴的 Cookie：剔除 CR/LF 等控制字符（保留 TAB 与 >= 0x80 的 obs-text）。
+ * Cookie 来自凭据输入框，粘贴时很容易带入结尾换行；而 Chromium 的
+ * net::HttpRequestHeaders::SetHeader 对非法 header value 有 CHECK，
+ * 旧版 Electron（31）在 onBeforeSendHeaders 里设置含 CRLF 的头会直接原生崩溃。
+ */
+export function sanitizeCookie(raw: string): string {
+  return raw.replace(/[\x00-\x08\x0A-\x1F\x7F]/g, '').trim()
+}
+
 /** 微博图片/视频请求所需的 Cookie，运行时可刷新 */
 let weiboCookie = ''
 /** X 视频请求所需的 Cookie，运行时可刷新 */
@@ -27,7 +37,7 @@ export function loadCookieForPlugin(pluginId: string): string {
       LIMIT 1
     `).get(pluginId) as { value: string } | undefined
     if (row) {
-      return decrypt(row.value)
+      return sanitizeCookie(decrypt(row.value))
     }
     console.log(`[main] No credential found for plugin ${pluginId}`)
   } catch (e) {
