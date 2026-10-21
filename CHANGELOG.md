@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- 开发模式（`npm run dev`）下 macOS 的 Dock 提示、应用菜单与关于面板显示 **FeedFlow** 而非 Electron：启动时复制一份 Electron bundle 改名并替换应用图标后通过 `ELECTRON_EXEC_PATH` 启动；保持原 bundle id（`com.github.Electron`）与 adhoc 松签名不变，safeStorage 已存储的凭据不受影响，Windows/Linux 开发行为不变
+
 ## [0.3.1] - 2026-09-17
 
 ### Added
