@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-21
+
 ### Changed
 - 开发模式（`npm run dev`）下 macOS 的 Dock 提示、应用菜单与关于面板显示 **FeedFlow** 而非 Electron：启动时复制一份 Electron bundle 改名并替换应用图标后通过 `ELECTRON_EXEC_PATH` 启动；保持原 bundle id（`com.github.Electron`）与 adhoc 松签名不变，safeStorage 已存储的凭据不受影响，Windows/Linux 开发行为不变
 
@@ -88,7 +90,8 @@ First stable release.
 - 微博 group chat image loading
 - Various `provider` migration and default-value issues
 
-[Unreleased]: https://github.com/joyme123/feedflow/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/joyme123/feedflow/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/joyme123/feedflow/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/joyme123/feedflow/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/joyme123/feedflow/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/joyme123/feedflow/compare/v0.1.0...v0.2.0
